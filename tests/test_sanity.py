@@ -1,4 +1,4 @@
-from pointcloudsimilarity import cka, gulp, procrustes, pwcca
+from pointcloudsimilarity import cka, gulp, procrustes, pwcca, nngs
 
 import numpy as np
 
@@ -79,3 +79,17 @@ def test_pwcca_2():
     sim = pwcca.PWCCASimilarity()
     similarity = sim(pc1, pc2)
     assert similarity < 0.9
+    
+def test_nngs_1():
+    pc1 = np.random.randn(100, 4)
+    pc2 = pc1 + 0.01 * np.random.randn(100, 4)
+    sim = nngs.NNGSSimilarity(k=5)
+    similarity = sim(pc1, pc2)
+    assert similarity > 0.8
+    
+def test_nngs_2():
+    pc1 = np.random.randn(100, 6)
+    pc2 = np.random.randn(100, 6)
+    sim = nngs.NNGSSimilarity(k=5)
+    similarity = sim(pc1, pc2)
+    assert similarity < 0.5
