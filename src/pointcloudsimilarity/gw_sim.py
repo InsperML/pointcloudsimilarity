@@ -52,4 +52,4 @@ def gw_sim(X1, X2, epsilon=1e-10):
     # --- 4. Compute the Gromov-Wasserstein distance ---
     _,  log = ot.gromov.gromov_wasserstein(C1, C2, p, q, loss_fun='square_loss', log=True)
 
-    return 1/(log['gw_dist'] + epsilon)  # Return similarity as inverse of distance
+    return -log['gw_dist']  # Return similarity as inverse of distance

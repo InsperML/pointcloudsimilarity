@@ -5,7 +5,7 @@ from sklearn.neighbors import kneighbors_graph
 from .core_similarity import Similarity
 
 class NNGSSimilarity(Similarity):
-    def __init__(self, k, self_is_neighbor=False, metric='minkowski', n_jobs=1):
+    def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1):
         """
         Initialize the NNGS similarity measure.
 
