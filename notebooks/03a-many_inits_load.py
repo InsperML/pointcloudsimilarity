@@ -20,8 +20,9 @@ my_metrics = {
     "cka_linear": CKASimilarity(),
     #"cka_rbf_autosigma": CKASimilarity(kernel='rbf'),
     #"cka_rbf_sigma10": CKASimilarity(kernel='rbf', sigma=10.0),
-    #"cka_rbf_sigma1": CKASimilarity(kernel='rbf', sigma=1.0),
+    "cka_rbf_sigma1": CKASimilarity(kernel='rbf', sigma=1.0),
     "cka_rbf_sigma01": CKASimilarity(kernel='rbf', sigma=0.1),
+    "cka_rbf_sigma001": CKASimilarity(kernel='rbf', sigma=0.01),
     #"gulp": GULPSimilarity(),
     #"procrustes": ProcrustesSimilarity(),
     #"gw_sim": GWSimilarity(),
@@ -34,8 +35,8 @@ my_metrics = {
 input_size = 2
 hidden_size = 5
 output_size = 2
-learning_rate = 0.001
-num_epochs = 50
+learning_rate = 1e-4
+num_epochs = 500
 batch_size = 100
 n_layers = 20
 n_samples = 2000

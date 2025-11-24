@@ -19,8 +19,8 @@ import os
 input_size = 2
 hidden_size = 5
 output_size = 2
-learning_rate = 0.001
-num_epochs = 50
+learning_rate = 1e-4
+num_epochs = 500
 batch_size = 100
 n_layers = 20
 n_samples = 2000
