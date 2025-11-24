@@ -5,7 +5,7 @@ from sklearn.neighbors import kneighbors_graph
 from .core_similarity import Similarity
 
 class NNGSSimilarity(Similarity):
-    def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1):
+    def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1, normalize=True):
         """
         Initialize the NNGS similarity measure.
 
@@ -19,6 +19,7 @@ class NNGSSimilarity(Similarity):
         self.self_is_neighbor = self_is_neighbor
         self.metric = metric
         self.n_jobs = n_jobs
+        self.normalize = normalize
 
     def __call__(self, pc1, pc2, **kwargs):
         """
@@ -32,13 +33,37 @@ class NNGSSimilarity(Similarity):
         Returns:
         float: NNGS similarity between the two point clouds.
         """
-        return mean_neighborhood_similarity_from_points(
+        nngs = mean_neighborhood_similarity_from_points(
             pc1,
             pc2,
             k=self.k,
             n_jobs=self.n_jobs,
             metric=self.metric,
         )
+        if self.normalize:
+            nngs = normalize_nngs(nngs, pc1.shape[0], self.k)
+
+        return nngs
+
+def hypergeometric_bound(n, k):
+        min_bound = k /(2*(n-1)-k)
+        return min_bound
+
+def normalize_nngs(similarity, n_points, k):
+    """
+    Normalize NNGS similarity using hypergeometric bound.
+
+    Parameters:
+    similarity (float): Raw NNGS similarity.
+    n_points (int): Number of points in the point clouds.
+    k (int): Number of neighbors used in NNGS.
+
+    Returns:
+    float: Normalized NNGS similarity.
+    """
+    min_bound = hypergeometric_bound(n_points, k)
+    normalized_similarity = (similarity - min_bound) / (1 - min_bound)
+    return normalized_similarity
 
 def nearest_neighbors(
     x,

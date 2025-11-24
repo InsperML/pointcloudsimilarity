@@ -85,7 +85,7 @@ def get_linear_kernel():
     return linear_kernel
 
 
-def cka(X, Y, kernel_X=get_linear_kernel(), kernel_Y=get_linear_kernel()):
+def cka(X, Y, kernel_X=get_linear_kernel(), kernel_Y=get_linear_kernel(), epsilon=1e-10):
     """
     CKA with a linear kernel as in:
     Similarity of Neural Network Representations Revisited,
@@ -106,6 +106,6 @@ def cka(X, Y, kernel_X=get_linear_kernel(), kernel_Y=get_linear_kernel()):
     LH = L - np.mean(L, axis=1)  # LH
 
     # Compute the CKA value.
-    cka_value = np.trace(KH @ LH) / np.sqrt(
-        np.trace(KH @ KH) * np.trace(LH @ LH))
+    cka_value = np.trace(KH @ LH) / np.maximum(np.sqrt(
+        np.trace(KH @ KH) * np.trace(LH @ LH)), epsilon)
     return cka_value
