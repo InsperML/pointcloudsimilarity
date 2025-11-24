@@ -15,9 +15,10 @@ class MLP(nn.Module):
         super().__init__()
         self.input_adapter = nn.Linear(input_size, hidden_size)
         self.layers = nn.Sequential(*[
-            nn.Dropout(p_dropout),
             nn.Linear(hidden_size, hidden_size),
+            nn.BatchNorm1d(hidden_size),
             nn.LeakyReLU(negative_slope=0.01),
+            nn.Dropout(p_dropout),
         ] * n_layers)
         self.output_adapter = nn.Linear(hidden_size, output_size)
 
@@ -27,12 +28,19 @@ class MLP(nn.Module):
         x = self.output_adapter(x)
         return x
     
+    def get_final_embeddings(self, x):
+        x = self.input_adapter(x)
+        x = self.layers(x)
+        return x
+    
     def get_intermediate_embeddings(self, x):
         y = []
         x = self.input_adapter(x)
+        y.append(x)
         for layer in self.layers:
             x = layer(x)
-            y.append(x)
+            if isinstance(layer, nn.LeakyReLU):
+                y.append(x)
         x = self.output_adapter(x)
         y.append(x)
         return y
@@ -64,11 +72,15 @@ def train_one_epoch(train_loader, eval_loader, model, optimizer, criterion):
     total_val_loss = 0
     total_val_accuracy = 0
 
+    device = next(model.parameters()).device
+
     for batch_x, batch_y in train_loader:
+        batch_x, batch_y = batch_x.to(device), batch_y.to(device)
         total_loss += train_one_batch(batch_x, batch_y, model, optimizer,
                                       criterion)
 
     for batch_x, batch_y in eval_loader:
+        batch_x, batch_y = batch_x.to(device), batch_y.to(device)
         val_loss_batch, eval_acc = eval_one_batch(batch_x, batch_y, model,
                                                   criterion)
         total_val_loss += val_loss_batch
