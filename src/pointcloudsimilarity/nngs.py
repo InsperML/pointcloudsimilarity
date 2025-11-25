@@ -1,7 +1,3 @@
-# Ok, so this has just been optimized by Google AI studio to use GPU for acceleration.
-# It now uses PyTorch to compute the NNGS similarity in batches on the GPU.
-# Oh my god it is so fast!
-
 
 import numpy as np
 import torch
@@ -18,7 +14,6 @@ def hypergeometric_bound(n, k):
     # Derived from Hypergeometric distribution mean for intersection size
     # E[|A n B|] = k^2 / n
     # E[J] approx E[Int] / (2k - E[Int])
-    # Your implementation used: k / (2*(n-1) - k) -> This is the lower bound H(k)
     return k / (2 * (n - 1) - k)
 
 # --- Optimized Engine ---
@@ -37,8 +32,11 @@ def compute_nngs_pytorch_batched(X, Y, k, batch_size=5000, device='cuda'):
         k = int(k * n_samples)
     
     # Validation
-    if k >= n_samples: k = n_samples - 1
-    if k < 1: k = 1
+    if k >= n_samples:
+        k = n_samples - 1
+    
+    if k < 1:
+        k = 1
     
     # Search for k+1 because the point itself is index 0
     search_k = k + 1
@@ -53,8 +51,8 @@ def compute_nngs_pytorch_batched(X, Y, k, batch_size=5000, device='cuda'):
 
     # Normalize for Cosine Similarity equivalence
     # (Euclidean distance on normalized vectors preserves rank of Cosine)
-    X = torch.nn.functional.normalize(X, p=2, dim=1)
-    Y = torch.nn.functional.normalize(Y, p=2, dim=1)
+    X_sq_norms = (X ** 2).sum(dim=1, keepdim=True) 
+    Y_sq_norms = (Y ** 2).sum(dim=1, keepdim=True)
 
     total_intersection = 0.0
     
@@ -65,46 +63,49 @@ def compute_nngs_pytorch_batched(X, Y, k, batch_size=5000, device='cuda'):
     for start in range(0, n_samples, batch_size):
         end = min(start + batch_size, n_samples)
         
-        # --- A. Find Neighbors for Batch X ---
+        # --- A. Neighbors for X (Batch) ---
         X_batch = X[start:end]
-        # Similarity Matrix: (Batch, N)
-        sim_x = torch.mm(X_batch, X.t()) 
-        # Get indices of top k neighbors
-        _, idx_x = torch.topk(sim_x, k=search_k, dim=1, largest=True)
-        # Remove self (first column) -> (Batch, k)
-        idx_x = idx_x[:, 1:] 
+        X_batch_sq = X_sq_norms[start:end] # (B, 1)
         
-        # --- B. Find Neighbors for Batch Y ---
+        # dist_sq = ||x||^2 + ||other||^2 - 2<x, other>
+        # We broadcast: (B, 1) + (1, N) - (B, N)
+        # Note: We use X as both query and key for the graph on X
+        
+        # 1. Dot Product (Heavy lifting, uses Tensor Cores)
+        dot_x = torch.mm(X_batch, X.t()) 
+        
+        # 2. Expand Euclidean Distance
+        # dist_x[i, j] = ||x_i||^2 + ||x_j||^2 - 2(x_i . x_j)
+        dist_x = X_batch_sq + X_sq_norms.t() - 2 * dot_x
+        
+        # 3. TopK (Smallest distance is best)
+        # largest=False because we want MINIMUM distance
+        _, idx_x = torch.topk(dist_x, k=search_k, dim=1, largest=False)
+        idx_x = idx_x[:, 1:] 
+
+        # --- B. Neighbors for Y (Batch) ---
         Y_batch = Y[start:end]
-        sim_y = torch.mm(Y_batch, Y.t())
-        _, idx_y = torch.topk(sim_y, k=search_k, dim=1, largest=True)
+        Y_batch_sq = Y_sq_norms[start:end]
+        
+        dot_y = torch.mm(Y_batch, Y.t())
+        dist_y = Y_batch_sq + Y_sq_norms.t() - 2 * dot_y
+        
+        _, idx_y = torch.topk(dist_y, k=search_k, dim=1, largest=False)
         idx_y = idx_y[:, 1:]
 
-        # --- C. Vectorized Jaccard Intersection ---
-        # We need to count how many items in idx_x[i] exist in idx_y[i].
-        # We use broadcasting: (Batch, k, 1) == (Batch, 1, k) -> (Batch, k, k)
-        # matches[b, i, j] is True if idx_x[b, i] == idx_y[b, j]
-        
+        # --- C. Vectorized Jaccard (Same as before) ---
         matches = (idx_x.unsqueeze(2) == idx_y.unsqueeze(1))
-        
-        # Sum over k*k grid to get intersection count for each item in batch
-        batch_intersections = matches.sum(dim=(1, 2)).float() # Shape: (Batch,)
-        
-        # Jaccard = Int / (2k - Int)
-        # We sum the Jaccard scores directly
-        # union = 2*k - intersection
+        batch_intersections = matches.sum(dim=(1, 2)).float()
         unions = (2 * k) - batch_intersections
-        
-        # Avoid division by zero
         jaccards = batch_intersections / unions.clamp(min=1e-8)
         
         total_intersection += jaccards.sum().item()
 
         # Clean memory
-        del sim_x, sim_y, idx_x, idx_y, matches
+        del dot_x, dist_x, idx_x, dot_y, dist_y, idx_y, matches
     
-    # Average Jaccard
     return total_intersection / n_samples
+
 
 
 class NNGSSimilarity(Similarity):
