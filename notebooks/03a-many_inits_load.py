@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from training import MLP
 
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
-                                               GWSimilarity, NNGSSimilarity,
+                                               GWSimilarity, NNGSSimilarityFaiss,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 
@@ -26,20 +26,20 @@ my_metrics = {
     #"gulp": GULPSimilarity(),
     #"procrustes": ProcrustesSimilarity(),
     #"gw_sim": GWSimilarity(),
-    "nngs_k90": NNGSSimilarity(k=90, n_jobs=-1, normalize=False),
-    "nngs_k40": NNGSSimilarity(k=40, n_jobs=-1, normalize=False),
-    #"nngs_k40": NNGSSimilarity(k=40, n_jobs=-1, normalize=True),
-    "nngs_k10": NNGSSimilarity(k=10, n_jobs=-1, normalize=False),
+    "nngs_k90": NNGSSimilarityFaiss(k=90, batch_size=5000, normalize=False),
+    "nngs_k40": NNGSSimilarityFaiss(k=40, batch_size=5000, normalize=False),
+    #"nngs_k40": NNGSSimilarityFaiss(k=40, n_jobs=-1, normalize=True),
+    "nngs_k10": NNGSSimilarityFaiss(k=10, batch_size=5000, normalize=False),
 }
 
-input_size = 2
-hidden_size = 5
-output_size = 2
+input_size = 20
+hidden_size = 50
+output_size = 20
 learning_rate = 1e-4
 num_epochs = 500
 batch_size = 100
-n_layers = 20
-n_samples = 2000
+n_layers = 10
+n_samples = 500
 p_dropout = 0.0
 n_models = 10
 
@@ -49,29 +49,14 @@ X, y = make_blobs(
     centers=output_size,
     n_features=input_size,
     cluster_std=0.2,
-    random_state=42,
+    random_state=43,
 )
 
-X_train, X_eval, y_train, y_eval = train_test_split(
-    X,
-    y,
-    test_size=0.1,
-    random_state=42,
-    stratify=y,
-)
 
-X_train = torch.tensor(X_train, dtype=torch.float32)
+X_eval = torch.tensor(X, dtype=torch.float32)
+y_eval = torch.tensor(y, dtype=torch.long)
 
-y_train = torch.tensor(y_train, dtype=torch.long)
-y_train = y_train[torch.randperm(y_train.size(0))]
-
-X_eval = torch.tensor(X_eval, dtype=torch.float32)
-y_eval = torch.tensor(y_eval, dtype=torch.long)
-
-indices = torch.randperm(X_eval.size(0))[:200]
-
-train_dataset = TensorDataset(X_train, y_train)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+indices = torch.randperm(X_eval.size(0))[:n_samples]
 
 eval_dataset = TensorDataset(X_eval, y_eval)
 eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
@@ -115,6 +100,8 @@ for model in loaded_models:
         X_transformed = model.get_final_embeddings(X_sampled).cpu().numpy()
         all_embeddings[id(model)].append(X_transformed)
 
+print("Calculated embeddings")
+
 def similarity_between_layers(emb : enumerate[list[torch.Tensor]], metric):
     layerwise_similarities = []
     n_models = len(emb)
@@ -134,6 +121,7 @@ def similarity_between_layers(emb : enumerate[list[torch.Tensor]], metric):
 intermediate_mebeddings = [model.get_intermediate_embeddings(X_eval[indices].cuda()) for model in loaded_models]
 layerwise_similarities_dict = {}
 for metric_name, metric in my_metrics.items():
+    print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
     layerwise_similarities_dict[metric_name] = similarity_between_layers(
         intermediate_mebeddings,
         metric,

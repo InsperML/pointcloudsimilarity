@@ -16,14 +16,14 @@ import os
 
 
 # Hyperparameters
-input_size = 2
-hidden_size = 5
-output_size = 2
+input_size = 20
+hidden_size = 50
+output_size = 20
 learning_rate = 1e-4
 num_epochs = 500
-batch_size = 100
-n_layers = 20
-n_samples = 2000
+batch_size = 2000
+n_layers = 10
+n_samples = 20000
 p_dropout = 0.0
 n_models = 10
 

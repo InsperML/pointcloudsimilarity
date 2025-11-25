@@ -2,7 +2,7 @@ from .cka import CKASimilarity
 from .gulp import GULPSimilarity
 from .procrustes import ProcrustesSimilarity
 from .gw_sim import GWSimilarity
-from .nngs import NNGSSimilarity
+from .nngs import NNGSSimilarityCPU, NNGSSimilarityFaiss, NNGSSimilarityTorch
 from .pwcca import PWCCASimilarity
 
 __all__ = [
@@ -10,7 +10,9 @@ __all__ = [
     "GULPSimilarity",
     "ProcrustesSimilarity",
     "GWSimilarity",
-    "NNGSSimilarity",
+    "NNGSSimilarityCPU",
+    "NNGSSimilarityFaiss",
+    "NNGSSimilarityTorch",
     "PWCCASimilarity",
 ]
 
@@ -19,7 +21,9 @@ available_metrics = {
     "gulp": GULPSimilarity,
     "procrustes": ProcrustesSimilarity,
     "gw_sim": GWSimilarity,
-    "nngs": NNGSSimilarity,
+    "nngs_cpu": NNGSSimilarityCPU,
+    "nngs_faiss": NNGSSimilarityFaiss,
+    "nngs_torch": NNGSSimilarityTorch,
     "pwcca": PWCCASimilarity,
 }
 
