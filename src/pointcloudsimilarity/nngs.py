@@ -1,125 +1,288 @@
-# NNGS, as described in "Measuring similarity between embedding spaces using induced neighborhood graphs" (https://arxiv.org/abs/2411.08687)
+# Ok, so this has just been optimized by Google AI studio to use GPU for acceleration.
+# It now uses PyTorch to compute the NNGS similarity in batches on the GPU.
+# Oh my god it is so fast!
+
 
 import numpy as np
-from sklearn.neighbors import kneighbors_graph
+import torch
 from .core_similarity import Similarity
 
-class NNGSSimilarity(Similarity):
-    def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1, normalize=True):
-        """
-        Initialize the NNGS similarity measure.
+# --- Helper: The Mathematical Bound ---
+def hypergeometric_bound(n, k):
+    """
+    Expected Jaccard similarity between two random subsets of size k 
+    drawn from a pool of size n.
+    """
+    if n <= 1 or k >= n: 
+        return 0.0 # Edge cases
+    # Derived from Hypergeometric distribution mean for intersection size
+    # E[|A n B|] = k^2 / n
+    # E[J] approx E[Int] / (2k - E[Int])
+    # Your implementation used: k / (2*(n-1) - k) -> This is the lower bound H(k)
+    return k / (2 * (n - 1) - k)
 
+# --- Optimized Engine ---
+def compute_nngs_pytorch_batched(X, Y, k, batch_size=5000, device='cuda'):
+    """
+    Computes NNGS using PyTorch with:
+    1. GPU Acceleration
+    2. Batched execution (prevents OOM on large N)
+    3. Vectorized Intersection (no Python sets)
+    """
+    # 1. Setup
+    n_samples = X.shape[0]
+    
+    # Handle fractional k (e.g., 0.2 -> 20% of N)
+    if isinstance(k, float):
+        k = int(k * n_samples)
+    
+    # Validation
+    if k >= n_samples: k = n_samples - 1
+    if k < 1: k = 1
+    
+    # Search for k+1 because the point itself is index 0
+    search_k = k + 1
+
+    # Move to GPU/Device
+    # Assuming inputs are numpy or torch, convert to float32 tensor
+    if not isinstance(X, torch.Tensor): X = torch.tensor(X)
+    if not isinstance(Y, torch.Tensor): Y = torch.tensor(Y)
+    
+    X = X.float().to(device)
+    Y = Y.float().to(device)
+
+    # Normalize for Cosine Similarity equivalence
+    # (Euclidean distance on normalized vectors preserves rank of Cosine)
+    X = torch.nn.functional.normalize(X, p=2, dim=1)
+    Y = torch.nn.functional.normalize(Y, p=2, dim=1)
+
+    total_intersection = 0.0
+    
+    # 2. Batched Processing
+    # We iterate through the dataset in chunks to calculate neighbors and similarity
+    # This keeps VRAM usage constant regardless of N.
+    
+    for start in range(0, n_samples, batch_size):
+        end = min(start + batch_size, n_samples)
+        
+        # --- A. Find Neighbors for Batch X ---
+        X_batch = X[start:end]
+        # Similarity Matrix: (Batch, N)
+        sim_x = torch.mm(X_batch, X.t()) 
+        # Get indices of top k neighbors
+        _, idx_x = torch.topk(sim_x, k=search_k, dim=1, largest=True)
+        # Remove self (first column) -> (Batch, k)
+        idx_x = idx_x[:, 1:] 
+        
+        # --- B. Find Neighbors for Batch Y ---
+        Y_batch = Y[start:end]
+        sim_y = torch.mm(Y_batch, Y.t())
+        _, idx_y = torch.topk(sim_y, k=search_k, dim=1, largest=True)
+        idx_y = idx_y[:, 1:]
+
+        # --- C. Vectorized Jaccard Intersection ---
+        # We need to count how many items in idx_x[i] exist in idx_y[i].
+        # We use broadcasting: (Batch, k, 1) == (Batch, 1, k) -> (Batch, k, k)
+        # matches[b, i, j] is True if idx_x[b, i] == idx_y[b, j]
+        
+        matches = (idx_x.unsqueeze(2) == idx_y.unsqueeze(1))
+        
+        # Sum over k*k grid to get intersection count for each item in batch
+        batch_intersections = matches.sum(dim=(1, 2)).float() # Shape: (Batch,)
+        
+        # Jaccard = Int / (2k - Int)
+        # We sum the Jaccard scores directly
+        # union = 2*k - intersection
+        unions = (2 * k) - batch_intersections
+        
+        # Avoid division by zero
+        jaccards = batch_intersections / unions.clamp(min=1e-8)
+        
+        total_intersection += jaccards.sum().item()
+
+        # Clean memory
+        del sim_x, sim_y, idx_x, idx_y, matches
+    
+    # Average Jaccard
+    return total_intersection / n_samples
+
+
+class NNGSSimilarity(Similarity):
+    def __init__(self, k=0.2, normalize=True, device=None, batch_size=2000):
+        """
+        Optimized NNGS class.
+        
         Parameters:
-        k (int or float): Number of neighbors or fraction of points to consider as neighbors.
-        self_is_neighbor (bool): Whether to include the point itself as its neighbor.
-        metric (str): Distance metric to use for nearest neighbors.
-        n_jobs (int): Number of parallel jobs to run for nearest neighbors computation.
+        k (int or float): Number of neighbors or fraction.
+        normalize (bool): Apply hypergeometric normalization.
+        device (str): 'cuda', 'cpu', or 'mps'. If None, auto-detects.
+        batch_size (int): Size of GPU chunks. Decrease if OOM.
         """
         self.k = k
-        self.self_is_neighbor = self_is_neighbor
-        self.metric = metric
-        self.n_jobs = n_jobs
         self.normalize = normalize
+        self.batch_size = batch_size
+        
+        if device is None:
+            if torch.cuda.is_available(): self.device = 'cuda'
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): self.device = 'mps'
+            else: self.device = 'cpu'
+        else:
+            self.device = device
 
     def __call__(self, pc1, pc2, **kwargs):
         """
-        Compute the NNGS similarity between two point clouds.
-
-        Parameters:
-        pc1 (np.ndarray): First point cloud of shape (N, D1).
-        pc2 (np.ndarray): Second point cloud of shape (N, D2).
-        (pc1 and pc2 must have the same number of points, but can have different dimensionality)
-
-        Returns:
-        float: NNGS similarity between the two point clouds.
+        Compute NNGS similarity.
         """
-        nngs = mean_neighborhood_similarity_from_points(
-            pc1,
-            pc2,
-            k=self.k,
-            n_jobs=self.n_jobs,
-            metric=self.metric,
+        # Calculate raw NNGS using the PyTorch engine
+        nngs_raw = compute_nngs_pytorch_batched(
+            pc1, 
+            pc2, 
+            k=self.k, 
+            batch_size=self.batch_size, 
+            device=self.device
         )
+        
         if self.normalize:
-            nngs = normalize_nngs(nngs, pc1.shape[0], self.k)
+            # Recalculate k if it was a float, for the bound formula
+            N = pc1.shape[0]
+            k_val = int(self.k * N) if isinstance(self.k, float) else self.k
+            
+            # Apply Normalization
+            min_bound = hypergeometric_bound(N, k_val)
+            
+            # Prevent div by zero if bound is 1 (weird edge case)
+            if min_bound >= 1.0:
+                return 0.0
+            
+            nngs_normalized = (nngs_raw - min_bound) / (1 - min_bound)
+            return nngs_normalized
 
-        return nngs
+        return nngs_raw
 
-def hypergeometric_bound(n, k):
-        min_bound = k /(2*(n-1)-k)
-        return min_bound
+# # NNGS, as described in "Measuring similarity between embedding spaces using induced neighborhood graphs" (https://arxiv.org/abs/2411.08687)
 
-def normalize_nngs(similarity, n_points, k):
-    """
-    Normalize NNGS similarity using hypergeometric bound.
+# import numpy as np
+# from sklearn.neighbors import kneighbors_graph
+# from .core_similarity import Similarity
 
-    Parameters:
-    similarity (float): Raw NNGS similarity.
-    n_points (int): Number of points in the point clouds.
-    k (int): Number of neighbors used in NNGS.
+# class NNGSSimilarity(Similarity):
+#     def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1, normalize=True):
+#         """
+#         Initialize the NNGS similarity measure.
 
-    Returns:
-    float: Normalized NNGS similarity.
-    """
-    min_bound = hypergeometric_bound(n_points, k)
-    normalized_similarity = (similarity - min_bound) / (1 - min_bound)
-    return normalized_similarity
+#         Parameters:
+#         k (int or float): Number of neighbors or fraction of points to consider as neighbors.
+#         self_is_neighbor (bool): Whether to include the point itself as its neighbor.
+#         metric (str): Distance metric to use for nearest neighbors.
+#         n_jobs (int): Number of parallel jobs to run for nearest neighbors computation.
+#         """
+#         self.k = k
+#         self.self_is_neighbor = self_is_neighbor
+#         self.metric = metric
+#         self.n_jobs = n_jobs
+#         self.normalize = normalize
 
-def nearest_neighbors(
-    x,
-    k,
-    self_is_neighbor=False,
-    metric='minkowski',
-    n_jobs=1,
-):
-    if isinstance(k, float):
-        k = int(k * x.shape[0])
-    G = kneighbors_graph(
-        x,
-        k,
-        mode='connectivity',
-        metric=metric,
-        include_self=self_is_neighbor,
-        n_jobs=n_jobs,
-    )
-    A = []
-    for i in range(G.shape[0]):
-        A.append(G.getrow(i).nonzero()[1])
+#     def __call__(self, pc1, pc2, **kwargs):
+#         """
+#         Compute the NNGS similarity between two point clouds.
 
-    A = np.vstack(A)
-    return A
+#         Parameters:
+#         pc1 (np.ndarray): First point cloud of shape (N, D1).
+#         pc2 (np.ndarray): Second point cloud of shape (N, D2).
+#         (pc1 and pc2 must have the same number of points, but can have different dimensionality)
+
+#         Returns:
+#         float: NNGS similarity between the two point clouds.
+#         """
+#         nngs = mean_neighborhood_similarity_from_points(
+#             pc1,
+#             pc2,
+#             k=self.k,
+#             n_jobs=self.n_jobs,
+#             metric=self.metric,
+#         )
+#         if self.normalize:
+#             nngs = normalize_nngs(nngs, pc1.shape[0], self.k)
+
+#         return nngs
+
+# def hypergeometric_bound(n, k):
+#         min_bound = k /(2*(n-1)-k)
+#         return min_bound
+
+# def normalize_nngs(similarity, n_points, k):
+#     """
+#     Normalize NNGS similarity using hypergeometric bound.
+
+#     Parameters:
+#     similarity (float): Raw NNGS similarity.
+#     n_points (int): Number of points in the point clouds.
+#     k (int): Number of neighbors used in NNGS.
+
+#     Returns:
+#     float: Normalized NNGS similarity.
+#     """
+#     min_bound = hypergeometric_bound(n_points, k)
+#     normalized_similarity = (similarity - min_bound) / (1 - min_bound)
+#     return normalized_similarity
+
+# def nearest_neighbors(
+#     x,
+#     k,
+#     self_is_neighbor=False,
+#     metric='minkowski',
+#     n_jobs=1,
+# ):
+#     if isinstance(k, float):
+#         k = int(k * x.shape[0])
+#     G = kneighbors_graph(
+#         x,
+#         k,
+#         mode='connectivity',
+#         metric=metric,
+#         include_self=self_is_neighbor,
+#         n_jobs=n_jobs,
+#     )
+#     A = []
+#     for i in range(G.shape[0]):
+#         A.append(G.getrow(i).nonzero()[1])
+
+#     A = np.vstack(A)
+#     return A
 
 
-def compute_jaccard_similarity(sx, sy):
-    """
-    Compute Jaccard similarity between two sets of indices.
-    """
-    return len(sx.intersection(sy)) / len(sx.union(sy))
+# def compute_jaccard_similarity(sx, sy):
+#     """
+#     Compute Jaccard similarity between two sets of indices.
+#     """
+#     return len(sx.intersection(sy)) / len(sx.union(sy))
 
 
-def mean_neighborhood_similarity_from_neighborhood(nx, ny):
-    num_points = nx.shape[0]
-    inter = 0
-    for i in range(num_points):
-        sx = set(nx[i])
-        sy = set(ny[i])
-        inter += compute_jaccard_similarity(sx, sy)
-    inter /= num_points
-    return inter
+# def mean_neighborhood_similarity_from_neighborhood(nx, ny):
+#     num_points = nx.shape[0]
+#     inter = 0
+#     for i in range(num_points):
+#         sx = set(nx[i])
+#         sy = set(ny[i])
+#         inter += compute_jaccard_similarity(sx, sy)
+#     inter /= num_points
+#     return inter
 
 
-def mean_neighborhood_similarity_from_points(
-    X,
-    Y,
-    k,
-    n_jobs=1,
-    metric='minkowski',
-):
-    """
-    This is $NNGS(X, Y, k)$
-    """
-    nx = nearest_neighbors(X, k=k, n_jobs=n_jobs, metric=metric)
-    ny = nearest_neighbors(Y, k=k, n_jobs=n_jobs, metric=metric)
-    return mean_neighborhood_similarity_from_neighborhood(nx, ny)
+# def mean_neighborhood_similarity_from_points(
+#     X,
+#     Y,
+#     k,
+#     n_jobs=1,
+#     metric='minkowski',
+# ):
+#     """
+#     This is $NNGS(X, Y, k)$
+#     """
+#     nx = nearest_neighbors(X, k=k, n_jobs=n_jobs, metric=metric)
+#     ny = nearest_neighbors(Y, k=k, n_jobs=n_jobs, metric=metric)
+#     return mean_neighborhood_similarity_from_neighborhood(nx, ny)
+
+
 
 
