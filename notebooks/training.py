@@ -16,7 +16,7 @@ class MLP(nn.Module):
         self.input_adapter = nn.Linear(input_size, hidden_size)
         self.layers = nn.Sequential(*[
             nn.Linear(hidden_size, hidden_size),
-            nn.BatchNorm1d(hidden_size),
+            nn.LayerNorm(hidden_size),
             nn.LeakyReLU(negative_slope=0.01),
             nn.Dropout(p_dropout),
         ] * n_layers)
@@ -34,7 +34,7 @@ class MLP(nn.Module):
         return x
     
     def get_intermediate_embeddings(self, x):
-        y = []
+        y = [x]
         x = self.input_adapter(x)
         y.append(x)
         for layer in self.layers:

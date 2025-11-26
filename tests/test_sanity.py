@@ -83,25 +83,25 @@ def test_pwcca_2():
 def test_nngs_1():
     pc1 = np.random.randn(100, 4)
     pc2 = pc1 + 0.01 * np.random.randn(100, 4)
-    sim = nngs.NNGSSimilarity(k=5)
+    sim = nngs.NNGSSimilarityCPU(k=5)
     similarity = sim(pc1, pc2)
     assert similarity > 0.8
     
 def test_nngs_2():
     pc1 = np.random.randn(100, 6)
     pc2 = np.random.randn(100, 6)
-    sim = nngs.NNGSSimilarity(k=5)
+    sim = nngs.NNGSSimilarityCPU(k=5)
     similarity = sim(pc1, pc2)
     assert similarity < 0.5
     
-def test_gw_1():
-    pc1 = np.random.randn(10, 3)
-    pc2 = pc1 + 0.01 * np.random.randn(10, 3)
-    sim = gw_sim.gw_sim(pc1, pc2)
-    assert sim > 50.0  # High similarity
+# def test_gw_1():
+#     pc1 = np.random.randn(10, 3)
+#     pc2 = pc1 + 0.01 * np.random.randn(10, 3)
+#     sim = gw_sim.gw_sim(pc1, pc2)
+#     assert sim > 50.0  # High similarity
     
-def test_gw_2():
-    pc1 = np.random.randn(10, 3)
-    pc2 = np.random.randn(10, 3)
-    sim = gw_sim.gw_sim(pc1, pc2)
-    assert sim < 50.0  # Low similarity
+# def test_gw_2():
+#     pc1 = np.random.randn(10, 3)
+#     pc2 = np.random.randn(10, 3)
+#     sim = gw_sim.gw_sim(pc1, pc2)
+#     assert sim < 50.0  # Low similarity

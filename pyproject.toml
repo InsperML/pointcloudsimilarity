@@ -24,7 +24,11 @@ build-backend = "hatchling.build"
 dev = [
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
+    "pytest-benchmark>=5.2.3",
     "scikit-learn>=1.7.2",
     "torch>=2.9.1",
     "tqdm>=4.67.1",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--benchmark-columns=mean,min,max,stddev"
