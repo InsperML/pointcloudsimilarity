@@ -16,15 +16,15 @@ import os
 
 
 # Hyperparameters
-input_size = 20
-hidden_size = 50
-output_size = 20
-learning_rate = 1e-4
+input_size = 10
+hidden_size = 30
+output_size = 10
+learning_rate = 1e-3
 num_epochs = 500
 batch_size = 2000
-n_layers = 10
-n_samples = 20000
-p_dropout = 0.0
+n_layers = 5
+n_samples = 2000
+p_dropout = 0.1
 n_models = 10
 
 X, y = make_blobs(

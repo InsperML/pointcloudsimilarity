@@ -3,7 +3,7 @@ import numpy as np
 from .core_similarity import Similarity
 
 class CKASimilarity(Similarity):
-    def __init__(self, kernel='linear', sigma=None, device=None):
+    def __init__(self, kernel='linear', sigma=None, device=None, scale_by_dim=False, scale_by_alpha=None):
         """
         PyTorch-Optimized CKA Similarity.
         
@@ -15,6 +15,8 @@ class CKASimilarity(Similarity):
         assert kernel in ['linear', 'rbf'], "Kernel must be 'linear' or 'rbf'"
         self.kernel = kernel
         self.sigma = sigma
+        self.scale_by_dim = scale_by_dim
+        self.scale_by_alpha = scale_by_alpha
         
         if device is None:
             if torch.cuda.is_available(): self.device = 'cuda'
@@ -24,6 +26,8 @@ class CKASimilarity(Similarity):
             self.device = device
 
     def __call__(self, pc1, pc2, **kwargs):
+        label = kwargs.get('label', None)
+        
         # Move to GPU/Tensor
         if not isinstance(pc1, torch.Tensor): pc1 = torch.tensor(pc1)
         if not isinstance(pc2, torch.Tensor): pc2 = torch.tensor(pc2)
@@ -53,10 +57,14 @@ class CKASimilarity(Similarity):
                 Y_sub = Y[idx]
                 combined = torch.cat([X_sub, Y_sub], dim=0)
                 sigma = estimate_sigma_torch(combined)
+                if label is not None:
+                    print(f"Label: {label}, Estimated sigma: {sigma}")
+                if self.scale_by_alpha is not None:
+                    sigma *= self.scale_by_alpha
             
-            return rbf_cka_gpu(X, Y, sigma)
+            return rbf_cka_gpu(X, Y, sigma, self.scale_by_dim)
 
-def linear_cka_optimized(X, Y):
+def linear_cka_optimized(X, Y, threshold=1e-16):
     """
     Computes Linear CKA using the Inner Product trick.
     Complexity: O(N * D^2) instead of O(N^2).
@@ -82,12 +90,12 @@ def linear_cka_optimized(X, Y):
     # 3. Combine
     denom = torch.sqrt(term_X * term_Y)
     
-    if denom < 1e-8:
+    if denom < threshold:
         return 0.0
         
     return (numerator / denom).item()
 
-def rbf_cka_gpu(X, Y, sigma):
+def rbf_cka_gpu(X, Y, sigma, scale_by_dim=False, threshold=1e-16):
     """
     Computes RBF CKA on GPU.
     Complexity: O(N^2).
@@ -95,8 +103,10 @@ def rbf_cka_gpu(X, Y, sigma):
     """
     # 1. Compute Gram Matrices (Kernel Matrices)
     # torch.cdist computes euclidean distance
-    K = torch.exp(-torch.cdist(X, X).pow(2) / (2 * sigma**2))
-    L = torch.exp(-torch.cdist(Y, Y).pow(2) / (2 * sigma**2))
+    if scale_by_dim:
+        sigma = sigma * X.shape[1]
+    K = torch.exp(-torch.cdist(X, X, compute_mode='donot_use_mm_for_euclid_dist').pow(2) / (2 * sigma**2))
+    L = torch.exp(-torch.cdist(Y, Y, compute_mode='donot_use_mm_for_euclid_dist').pow(2) / (2 * sigma**2))
     
     # 2. Center the Kernels (Double Centering: HKH)
     K_c = center_gram_matrix(K)
@@ -112,8 +122,8 @@ def rbf_cka_gpu(X, Y, sigma):
     
     denom = denom_x * denom_y
     
-    if denom < 1e-8:
-        return 0.0
+    if denom < threshold:
+        return linear_cka_optimized(X, Y)
         
     return (numerator / denom).item()
 
@@ -125,11 +135,9 @@ def center_gram_matrix(K):
     n = K.shape[0]
     # Calculate means
     row_means = K.mean(dim=1, keepdim=True) # (N, 1)
-    col_means = K.mean(dim=0, keepdim=True) # (1, N)
-    grand_mean = K.mean()                   # (1, 1)
     
     # Broadcast subtraction
-    K_c = K - row_means - col_means + grand_mean
+    K_c = K - row_means
     return K_c
 
 def estimate_sigma_torch(data):
