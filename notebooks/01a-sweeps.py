@@ -54,7 +54,7 @@ def sweep_model_similarity(X, Y):
     alphas = np.logspace(-1, 5, 50)
     similarities_cka = []
     for alpha in tqdm(alphas):
-        metric = CKASimilarity(kernel='rbf', scale_by_alpha=alpha, initial_quantile=0.1)
+        metric = CKASimilarity(kernel='rbf', scale_by_alpha=alpha)
         #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
         #t0 = time.perf_counter()
         sim = metric(X, Y)
@@ -93,6 +93,7 @@ def blob_experiment(N, D, n_blobs=1, distance=2.0):
     plt.xscale('log')
     plt.xlabel('Alpha (scaling factor for sigma)')
     plt.ylabel('RBF-CKA')
+    plt.ylim(0, 1.05)
     plt.grid()
     plt.legend()
  
@@ -102,6 +103,7 @@ def blob_experiment(N, D, n_blobs=1, distance=2.0):
     plt.plot(ks_shuf, np.array(similarities_nngs_shuf), label='Shuffled blobs')
     plt.xlabel('K (neighborhood size)')
     plt.ylabel('NNGS')
+    plt.ylim(0, 1.05)
     plt.grid()
     plt.legend()
     
@@ -115,7 +117,9 @@ def blob_experiment(N, D, n_blobs=1, distance=2.0):
 def main():
     blob_experiment(100, 20, n_blobs=5, distance=10.0)
     blob_experiment(200, 50, n_blobs=3, distance=5.0)
-
+    blob_experiment(200, 100, n_blobs=3, distance=5.0)
+    blob_experiment(100, 720, n_blobs=5, distance=5.0)
+        
 if __name__ == "__main__":
     main()
     
