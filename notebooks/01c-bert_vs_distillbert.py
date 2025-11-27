@@ -52,13 +52,12 @@ def sweep_model_similarity(X, Y):
 
     return alphas, similarities_cka, ks, similarities_nngs
 
-def get_sbert_embeddings(model_name, dataset, max_samples=2000):
+def get_sbert_embeddings(model_name, texts, max_samples=2000):
     print(f"Loading {model_name}...")
     # Load model on GPU
     model = SentenceTransformer(model_name, device='cuda' if torch.cuda.is_available() else 'cpu')
     
-    texts = dataset['sentence'][:max_samples]
-    print(f"Encoding {len(texts)} samples...")
+
     
     # SBERT handles batching and tokenization internally
     # normalize_embeddings=True is CRITICAL. SBERT is trained for Cosine Similarity.
@@ -66,7 +65,7 @@ def get_sbert_embeddings(model_name, dataset, max_samples=2000):
     
     return embeddings
 
-def get_gpt_embeddings(model_name, dataset, max_samples=2000, batch_size=32):
+def get_gpt_embeddings(model_name, texts, max_samples=2000, batch_size=32):
     """
     Extracts embeddings from GPT-style (Decoder-only) models.
     Uses the 'Last Token' hidden state strategy.
@@ -84,7 +83,7 @@ def get_gpt_embeddings(model_name, dataset, max_samples=2000, batch_size=32):
         tokenizer.pad_token = tokenizer.eos_token
         
     embeddings = []
-    texts = dataset['sentence'][:max_samples]
+
     
     print(f"Extracting GPT embeddings for {len(texts)} samples...")
     
@@ -116,7 +115,7 @@ def get_gpt_embeddings(model_name, dataset, max_samples=2000, batch_size=32):
 
     return torch.cat(embeddings, dim=0)
 
-def get_bert_embeddings(model_name, dataset, max_samples=2000):
+def get_bert_embeddings(model_name, texts, max_samples=2000):
     print(f"Loading {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModel.from_pretrained(model_name).to(device)
@@ -127,7 +126,7 @@ def get_bert_embeddings(model_name, dataset, max_samples=2000):
     print(f"Extracting embeddings for {max_samples} samples...")
     # Iterate with small batch size to avoid VRAM issues
     batch_size = 32
-    texts = dataset['sentence'][:max_samples]
+    
     
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
@@ -144,17 +143,21 @@ def get_bert_embeddings(model_name, dataset, max_samples=2000):
 
 
 def model_vs_model_experiment():
-    dataset = load_dataset("sst2", split="train")
-
+    N_SAMPLES = 10000 
+    max_samples = N_SAMPLES
+    dataset = load_dataset("imdb", split="train")
+    dataset = dataset.shuffle(seed=42)
+    texts = dataset['text'][:max_samples]
+    
     # Extract Teacher (BERT) and Student (DistilBERT)
     # N=2000 is enough to see topology, but 5000 is better if you have time.
-    N_SAMPLES = 10000 
-    emb_teacher_bert = get_bert_embeddings("bert-base-uncased", dataset, max_samples=N_SAMPLES)
-    emb_student_bert = get_bert_embeddings("distilbert-base-uncased", dataset, max_samples=N_SAMPLES)
-    emb_teacher_gpt = get_gpt_embeddings("gpt2", dataset, max_samples=N_SAMPLES)
-    emb_student_gpt = get_gpt_embeddings("distilgpt2", dataset, max_samples=N_SAMPLES)
-    emb_teacher_sbert = get_sbert_embeddings("all-mpnet-base-v2", dataset, max_samples=N_SAMPLES)
-    emb_student_sbert = get_sbert_embeddings("all-MiniLM-L6-v2", dataset, max_samples=N_SAMPLES)
+
+    emb_teacher_bert = get_bert_embeddings("bert-base-uncased", texts, max_samples=N_SAMPLES)
+    emb_student_bert = get_bert_embeddings("distilbert-base-uncased", texts, max_samples=N_SAMPLES)
+    emb_teacher_gpt = get_gpt_embeddings("gpt2", texts, max_samples=N_SAMPLES)
+    emb_student_gpt = get_gpt_embeddings("distilgpt2", texts, max_samples=N_SAMPLES)
+    emb_teacher_sbert = get_sbert_embeddings("all-mpnet-base-v2", texts, max_samples=N_SAMPLES)
+    emb_student_sbert = get_sbert_embeddings("all-MiniLM-L6-v2", texts, max_samples=N_SAMPLES)
 
     # Normalize each sample (row) to unit L2 norm
     emb_teacher_bert = F.normalize(emb_teacher_bert, p=2, dim=1, eps=1e-12)
