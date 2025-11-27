@@ -3,7 +3,7 @@ import numpy as np
 from .core_similarity import Similarity
 
 class CKASimilarity(Similarity):
-    def __init__(self, kernel='linear', sigma=None, device=None, scale_by_dim=False, scale_by_alpha=None):
+    def __init__(self, kernel='linear', sigma=None, device=None, scale_by_dim=False, scale_by_alpha=None, initial_quantile=0.5):
         """
         PyTorch-Optimized CKA Similarity.
         
@@ -17,6 +17,7 @@ class CKASimilarity(Similarity):
         self.sigma = sigma
         self.scale_by_dim = scale_by_dim
         self.scale_by_alpha = scale_by_alpha
+        self.initial_quantile = initial_quantile
         
         if device is None:
             if torch.cuda.is_available(): self.device = 'cuda'
@@ -56,7 +57,7 @@ class CKASimilarity(Similarity):
                 X_sub = X[idx]
                 Y_sub = Y[idx]
                 combined = torch.cat([X_sub, Y_sub], dim=0)
-                sigma = estimate_sigma_torch(combined)
+                sigma = estimate_sigma_torch(combined, q=self.initial_quantile)
                 if label is not None:
                     print(f"Label: {label}, Estimated sigma: {sigma}")
                 if self.scale_by_alpha is not None:
@@ -140,7 +141,7 @@ def center_gram_matrix(K):
     K_c = K - row_means
     return K_c
 
-def estimate_sigma_torch(data):
+def estimate_sigma_torch(data, q=0.5):
     """
     Estimates sigma using the median distance heuristic on GPU.
     """
@@ -149,7 +150,7 @@ def estimate_sigma_torch(data):
     dists = torch.pdist(data).pow(2)
     
     # Median
-    median_dist = dists.median()
+    median_dist = dists.quantile(q)
     
     # Sigma = sqrt(median / 2) * alpha? 
     # Standard heuristic is often just sqrt(median) or similar.
