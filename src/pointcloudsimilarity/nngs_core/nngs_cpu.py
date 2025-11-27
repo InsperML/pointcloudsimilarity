@@ -22,7 +22,7 @@ def normalize_nngs(similarity, n_points, k):
     Returns:
     float: Normalized NNGS similarity.
     """
-    min_bound = hypergeometric_bound(n_points, k)
+    min_bound = hypergeometric_bound(n_points-1, k)
     normalized_similarity = (similarity - min_bound) / (1 - min_bound)
     return normalized_similarity
 

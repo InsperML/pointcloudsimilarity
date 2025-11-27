@@ -8,12 +8,16 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "datasets>=4.4.1",
     "faiss-gpu-cu12>=1.13.0",
     "numpy>=2.3.4",
     "pot>=0.9.6.post1",
     "pytest>=9.0.1",
     "scikit-learn>=1.7.2",
     "scipy>=1.16.3",
+    "sentence-transformers>=5.1.2",
+    "transformers>=4.57.3",
+    "umap-learn>=0.5.9.post2",
 ]
 
 [build-system]

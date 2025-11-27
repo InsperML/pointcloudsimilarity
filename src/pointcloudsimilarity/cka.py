@@ -56,8 +56,8 @@ class CKASimilarity(Similarity):
                 idx = torch.randperm(X.shape[0])[:subset_size]
                 X_sub = X[idx]
                 Y_sub = Y[idx]
-                combined = torch.cat([X_sub, Y_sub], dim=0)
-                sigma = estimate_sigma_torch(combined, q=self.initial_quantile)
+                #combined = torch.cat([X_sub, Y_sub], dim=0)
+                sigma = estimate_sigma_torch(X_sub, q=self.initial_quantile)
                 if label is not None:
                     print(f"Label: {label}, Estimated sigma: {sigma}")
                 if self.scale_by_alpha is not None:
