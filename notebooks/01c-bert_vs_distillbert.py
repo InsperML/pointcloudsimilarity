@@ -37,8 +37,8 @@ def sweep_model_similarity(X, Y):
         #print(f"Calculated layerwise similarities using {metric.__class__.__name__}.")
         similarities_cka.append(sim)
 
-    ks = np.arange(1, X.shape[0]-1, 10)
-    ks = np.arange(1, 200, 1)
+    ks = np.arange(1, X.shape[0]-1, 20)
+    #ks = np.arange(1, 500, 1)
     similarities_nngs = []
     for k in tqdm(ks):
         metric = NNGSSimilarityTorch(k=k, batch_size=100, normalize=True)
@@ -53,10 +53,12 @@ def sweep_model_similarity(X, Y):
     return alphas, similarities_cka, ks, similarities_nngs
 
 def get_sbert_embeddings(model_name, texts, max_samples=2000):
+def get_sbert_embeddings(model_name, texts, max_samples=2000):
     print(f"Loading {model_name}...")
     # Load model on GPU
     model = SentenceTransformer(model_name, device='cuda' if torch.cuda.is_available() else 'cpu')
     
+
 
     
     # SBERT handles batching and tokenization internally
@@ -65,6 +67,7 @@ def get_sbert_embeddings(model_name, texts, max_samples=2000):
     
     return embeddings
 
+def get_gpt_embeddings(model_name, texts, max_samples=2000, batch_size=32):
 def get_gpt_embeddings(model_name, texts, max_samples=2000, batch_size=32):
     """
     Extracts embeddings from GPT-style (Decoder-only) models.
@@ -83,6 +86,7 @@ def get_gpt_embeddings(model_name, texts, max_samples=2000, batch_size=32):
         tokenizer.pad_token = tokenizer.eos_token
         
     embeddings = []
+
 
     
     print(f"Extracting GPT embeddings for {len(texts)} samples...")
@@ -126,7 +130,7 @@ def get_bert_embeddings(model_name, texts, max_samples=2000):
     print(f"Extracting embeddings for {max_samples} samples...")
     # Iterate with small batch size to avoid VRAM issues
     batch_size = 32
-    
+    texts = dataset['sentence'][:max_samples]
     
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
@@ -143,21 +147,30 @@ def get_bert_embeddings(model_name, texts, max_samples=2000):
 
 
 def model_vs_model_experiment():
-    N_SAMPLES = 10000 
+    N_SAMPLES = 1000 
     max_samples = N_SAMPLES
-    dataset = load_dataset("imdb", split="train")
-    dataset = dataset.shuffle(seed=42)
-    texts = dataset['text'][:max_samples]
+    ds = load_dataset("wikimedia/wikipedia", "20231101.en", split="train", streaming=True)
+    texts = []
+    for i, article in enumerate(ds.take(N_SAMPLES*10)):
+        texts.append(article['text'])
     
+    # Randomly select N_SAMPLES texts
+    rng = np.random.default_rng(1234)
+    if len(texts) > N_SAMPLES:
+        idx = rng.choice(len(texts), size=N_SAMPLES, replace=False)
+        texts = [texts[i] for i in idx]
+    else:
+        texts = texts[:N_SAMPLES]
+      
     # Extract Teacher (BERT) and Student (DistilBERT)
     # N=2000 is enough to see topology, but 5000 is better if you have time.
 
-    emb_teacher_bert = get_bert_embeddings("bert-base-uncased", texts, max_samples=N_SAMPLES)
-    emb_student_bert = get_bert_embeddings("distilbert-base-uncased", texts, max_samples=N_SAMPLES)
+    emb_teacher_bert = get_bert_embeddings("google/bert_uncased_L-2_H-128_A-2", texts, max_samples=N_SAMPLES)
+    emb_student_bert = get_bert_embeddings("google/bert_uncased_L-2_H-256_A-4", texts, max_samples=N_SAMPLES)
     emb_teacher_gpt = get_gpt_embeddings("gpt2", texts, max_samples=N_SAMPLES)
     emb_student_gpt = get_gpt_embeddings("distilgpt2", texts, max_samples=N_SAMPLES)
-    emb_teacher_sbert = get_sbert_embeddings("all-mpnet-base-v2", texts, max_samples=N_SAMPLES)
-    emb_student_sbert = get_sbert_embeddings("all-MiniLM-L6-v2", texts, max_samples=N_SAMPLES)
+    emb_teacher_sbert = get_sbert_embeddings("distiluse-base-multilingual-cased-v1", texts, max_samples=N_SAMPLES)
+    emb_student_sbert = get_sbert_embeddings("distiluse-base-multilingual-cased-v2", texts, max_samples=N_SAMPLES)
 
     # Normalize each sample (row) to unit L2 norm
     emb_teacher_bert = F.normalize(emb_teacher_bert, p=2, dim=1, eps=1e-12)
@@ -178,9 +191,9 @@ def model_vs_model_experiment():
     plt.figure(figsize=(8, 5))
     plt.subplot(2,1,1)
 
-    plt.plot(alphas_bert, np.array(similarities_cka_bert), label='BERT vs DistilBERT')
+    plt.plot(alphas_bert, np.array(similarities_cka_bert), label='BERT-tiny-128-L2 vs BERT-tiny-256-L2')
     plt.plot(alphas_gpt, np.array(similarities_cka_gpt), label='GPT2 vs DistilGPT2')
-    plt.plot(alphas_sbert, np.array(similarities_cka_sbert), label='SBERT vs MiniSBERT')
+    plt.plot(alphas_sbert, np.array(similarities_cka_sbert), label='SBERT-v1 vs SBERT-v2')
     plt.xscale('log')
     plt.xlabel('Alpha (scaling factor for sigma)')
     plt.ylabel('RBF-CKA')
@@ -190,9 +203,9 @@ def model_vs_model_experiment():
  
 
     plt.subplot(2,1,2)
-    plt.plot(ks_bert, np.array(similarities_nngs_bert), label='BERT vs DistilBERT')  
+    plt.plot(ks_bert, np.array(similarities_nngs_bert), label='BERT-tiny-128-L2 vs BERT-tiny-256-L2')  
     plt.plot(ks_gpt, np.array(similarities_nngs_gpt), label='GPT2 vs DistilGPT2')
-    plt.plot(ks_sbert, np.array(similarities_nngs_sbert), label='SBERT vs MiniSBERT')
+    plt.plot(ks_sbert, np.array(similarities_nngs_sbert), label='SBERT-v1 vs SBERT-v2')
     plt.xlabel('K (neighborhood size)')
     plt.ylabel('NNGS')
     plt.ylim(0, 1.05)
