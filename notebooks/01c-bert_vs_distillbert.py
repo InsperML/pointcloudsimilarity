@@ -162,8 +162,8 @@ def model_vs_model_experiment():
     # Extract Teacher (BERT) and Student (DistilBERT)
     # N=2000 is enough to see topology, but 5000 is better if you have time.
 
-    emb_teacher_bert = get_bert_embeddings("google/bert_uncased_L-12_H-768_A-12", texts, max_samples=N_SAMPLES)
-    emb_student_bert = get_bert_embeddings("google-bert/bert-base-uncased", texts, max_samples=N_SAMPLES)
+    emb_teacher_bert = get_bert_embeddings("google/multiberts-seed_0", texts, max_samples=N_SAMPLES)
+    emb_student_bert = get_bert_embeddings("google/multiberts-seed_2", texts, max_samples=N_SAMPLES)
     emb_teacher_gpt = get_gpt_embeddings("gpt2", texts, max_samples=N_SAMPLES)
     emb_student_gpt = get_gpt_embeddings("distilgpt2", texts, max_samples=N_SAMPLES)
     emb_teacher_sbert = get_sbert_embeddings("distiluse-base-multilingual-cased-v1", texts, max_samples=N_SAMPLES)
