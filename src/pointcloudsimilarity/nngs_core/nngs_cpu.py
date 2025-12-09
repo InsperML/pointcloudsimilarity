@@ -2,13 +2,20 @@
 
 import numpy as np
 from sklearn.neighbors import kneighbors_graph
+import scipy.stats as stats
 
 
 
-
-def hypergeometric_bound(n, k):
-        min_bound = k /(2*(n-1)-k)
-        return min_bound
+def hypergeometric_bound(n, k, only_intersection=False):
+    if n <= 1 or k >= n:
+        return 0.0  # Edge cases
+    # Derived from Hypergeometric distribution mean for intersection size
+    # E[|A n B|] = k^2 / n
+    # E[J] approx E[Int] / (2k - E[Int])
+    if only_intersection:
+        return k**2/n 
+    else:
+        return k / (2 * (n - 1) - k)
 
 def normalize_nngs(similarity, n_points, k):
     """
@@ -24,6 +31,7 @@ def normalize_nngs(similarity, n_points, k):
     """
     min_bound = hypergeometric_bound(n_points-1, k)
     normalized_similarity = (similarity - min_bound) / (1 - min_bound)
+    #normalized_similarity = stats.hypergeom.pmf(similarity * k, n_points, k, n_points-1)
     return normalized_similarity
 
 def nearest_neighbors(

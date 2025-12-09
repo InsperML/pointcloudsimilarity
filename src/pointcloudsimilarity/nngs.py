@@ -1,5 +1,3 @@
-
-
 import torch
 from .core_similarity import Similarity
 from .nngs_core.nngs_cpu import mean_neighborhood_similarity_from_points, hypergeometric_bound, normalize_nngs
@@ -7,9 +5,14 @@ from .nngs_core.nngs_torch import compute_nngs_pytorch_batched
 from .nngs_core.nngs_faiss import compute_nngs_faiss
 
 
-
 class NNGSSimilarityCPU(Similarity):
-    def __init__(self, k=0.2, self_is_neighbor=False, metric='minkowski', n_jobs=1, normalize=True):
+
+    def __init__(self,
+                 k=0.2,
+                 self_is_neighbor=False,
+                 metric='minkowski',
+                 n_jobs=1,
+                 normalize=True):
         """
         Initialize the NNGS similarity measure.
 
@@ -49,8 +52,17 @@ class NNGSSimilarityCPU(Similarity):
 
         return nngs
 
+
 class NNGSSimilarityTorch(Similarity):
-    def __init__(self, k=0.2, normalize=True, device=None, batch_size=2000):
+
+    def __init__(
+        self,
+        k=0.2,
+        normalize=True,
+        device=None,
+        batch_size=2000,
+        only_intersection=False,
+    ):
         """
         Optimized NNGS class.
         
@@ -63,11 +75,15 @@ class NNGSSimilarityTorch(Similarity):
         self.k = k
         self.normalize = normalize
         self.batch_size = batch_size
-        
+        self.only_intersection = only_intersection
+
         if device is None:
             if torch.cuda.is_available(): self.device = 'cuda'
-            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): self.device = 'mps'
-            else: self.device = 'cpu'
+            elif hasattr(torch.backends,
+                         'mps') and torch.backends.mps.is_available():
+                self.device = 'mps'
+            else:
+                self.device = 'cpu'
         else:
             self.device = device
 
@@ -77,33 +93,46 @@ class NNGSSimilarityTorch(Similarity):
         """
         # Calculate raw NNGS using the PyTorch engine
         nngs_raw = compute_nngs_pytorch_batched(
-            pc1, 
-            pc2, 
-            k=self.k, 
-            batch_size=self.batch_size, 
-            device=self.device
+            pc1,
+            pc2,
+            k=self.k,
+            batch_size=self.batch_size,
+            device=self.device,
+            only_intersection=self.only_intersection,
         )
-        
+
         if self.normalize:
             # Recalculate k if it was a float, for the bound formula
             N = pc1.shape[0]
             k_val = int(self.k * N) if isinstance(self.k, float) else self.k
-            
+
             # Apply Normalization
-            min_bound = hypergeometric_bound(N, k_val)
-            
+            min_bound = hypergeometric_bound(N, k_val, only_intersection=self.only_intersection)
+
             # Prevent div by zero if bound is 1 (weird edge case)
             if min_bound >= 1.0:
                 return 0.0
             
-            nngs_normalized = (nngs_raw - min_bound) / (1 - min_bound)
+            if self.only_intersection:
+                max_bound = self.k
+            else:
+                max_bound = 1
+
+            nngs_normalized = (nngs_raw - min_bound) / (max_bound - min_bound)
             return nngs_normalized
 
         return nngs_raw
 
 
 class NNGSSimilarityFaiss(Similarity):
-    def __init__(self, k=5, approximate=False, metric='euclidean', batch_size=5000, gpu=True, normalize=True):
+
+    def __init__(self,
+                 k=5,
+                 approximate=False,
+                 metric='euclidean',
+                 batch_size=5000,
+                 gpu=True,
+                 normalize=True):
         """
         NNGS Similarity using FAISS backend.
         
@@ -126,25 +155,23 @@ class NNGSSimilarityFaiss(Similarity):
         """
         Compute NNGS similarity using FAISS.
         """
-        nngs_raw = compute_nngs_faiss(
-            pc1,
-            pc2,
-            k=self.k,
-            approximate=self.approximate,
-            metric=self.metric,
-            batch_size=self.batch_size,
-            gpu=self.gpu
-        )
-        
+        nngs_raw = compute_nngs_faiss(pc1,
+                                      pc2,
+                                      k=self.k,
+                                      approximate=self.approximate,
+                                      metric=self.metric,
+                                      batch_size=self.batch_size,
+                                      gpu=self.gpu)
+
         if self.normalize:
             N = pc1.shape[0]
             k_val = self.k
-            
+
             min_bound = hypergeometric_bound(N, k_val)
-            
+
             if min_bound >= 1.0:
                 return 0.0
-            
+
             nngs_normalized = (nngs_raw - min_bound) / (1 - min_bound)
             return nngs_normalized
 
