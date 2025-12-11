@@ -10,3 +10,4 @@ wheels/
 .venv
 *.png
 *.pth 
+notebooks/gensim_view.ipynb

@@ -107,7 +107,7 @@ class NNGSSimilarityTorch(Similarity):
             k_val = int(self.k * N) if isinstance(self.k, float) else self.k
 
             # Apply Normalization
-            min_bound = hypergeometric_bound(N, k_val, only_intersection=self.only_intersection)
+            min_bound = hypergeometric_bound(N-1, k_val, only_intersection=self.only_intersection)
 
             # Prevent div by zero if bound is 1 (weird edge case)
             if min_bound >= 1.0:
