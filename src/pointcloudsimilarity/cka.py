@@ -52,6 +52,8 @@ class CKASimilarity(Similarity):
             sigma = self.sigma
             if sigma is None:
                 # Combine a subset of X and Y to estimate sigma
+                # Algorithm: calculate pairwise distances on a subset, get median,
+                # multiply by alpha. In the original paper, alpha \in {0.8, 0.4, 0.2}
                 subset_size = min(2000, X.shape[0])
                 idx = torch.randperm(X.shape[0])[:subset_size]
                 X_sub = X[idx]
