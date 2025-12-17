@@ -301,16 +301,16 @@ def get_finetuned_gptx_embeddings(base_model_name,
 
 similarities = {
     'CKA linear': CKASimilarity(kernel='linear'),
-    'CKA RBF ($\alpha=0.2$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.2),
-    'CKA RBF ($\alpha=0.4$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.4),
-    'CKA RBF ($\alpha=0.8$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.8),
-    'NNGS (k=10)': NNGSSimilarityTorch(k=10, normalize=True),
-    'NNGS (k=125)': NNGSSimilarityTorch(k=125, normalize=True),
-    'NNGS (k=250)': NNGSSimilarityTorch(k=250, normalize=True),
+    'CKA RBF ($\\alpha=0.2$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.2),
+    'CKA RBF ($\\alpha=0.4$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.4),
+    'CKA RBF ($\\alpha=0.8$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.8),
     'GULP': GULPSimilarity(),
     'Procrustes': ProcrustesSimilarity(),
     'GW': GWSimilarity(),
     'PWCCA': PWCCASimilarity(symmetric=True),
+    'NNGS ($k=10$)': NNGSSimilarityTorch(k=10, normalize=True),
+    'NNGS ($k=125$)': NNGSSimilarityTorch(k=125, normalize=True),
+    'NNGS ($k=250$)': NNGSSimilarityTorch(k=250, normalize=True),
 }
 
 def calculate_all_similaritiees(X, Y, similarities):
