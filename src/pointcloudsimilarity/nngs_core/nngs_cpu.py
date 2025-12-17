@@ -1,9 +1,8 @@
 # NNGS, as described in "Measuring similarity between embedding spaces using induced neighborhood graphs" (https://arxiv.org/abs/2411.08687)
 
 import numpy as np
-from sklearn.neighbors import kneighbors_graph
 import scipy.stats as stats
-
+from sklearn.neighbors import kneighbors_graph
 
 
 def hypergeometric_bound(n, k, only_intersection=False):
@@ -13,9 +12,10 @@ def hypergeometric_bound(n, k, only_intersection=False):
     # E[|A n B|] = k^2 / n
     # E[J] approx E[Int] / (2k - E[Int])
     if only_intersection:
-        return k**2/n 
+        return k**2 / n
     else:
         return k / (2 * n - k)
+
 
 def normalize_nngs(similarity, n_points, k):
     """
@@ -29,10 +29,11 @@ def normalize_nngs(similarity, n_points, k):
     Returns:
     float: Normalized NNGS similarity.
     """
-    min_bound = hypergeometric_bound(n_points-1, k)
+    min_bound = hypergeometric_bound(n_points - 1, k)
     normalized_similarity = (similarity - min_bound) / (1 - min_bound)
-    #normalized_similarity = stats.hypergeom.pmf(similarity * k, n_points, k, n_points-1)
+    # normalized_similarity = stats.hypergeom.pmf(similarity * k, n_points, k, n_points-1)
     return normalized_similarity
+
 
 def nearest_neighbors(
     x,
@@ -90,6 +91,3 @@ def mean_neighborhood_similarity_from_points(
     nx = nearest_neighbors(X, k=k, n_jobs=n_jobs, metric=metric)
     ny = nearest_neighbors(Y, k=k, n_jobs=n_jobs, metric=metric)
     return mean_neighborhood_similarity_from_neighborhood(nx, ny)
-
-
-

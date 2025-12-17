@@ -4,7 +4,7 @@ import torch
 # --- Helper: The Mathematical Bound ---
 def hypergeometric_bound(n, k, only_intersection=False):
     """
-    Expected Jaccard similarity between two random subsets of size k 
+    Expected Jaccard similarity between two random subsets of size k
     drawn from a pool of size n.
     """
     if n <= 1 or k >= n:
@@ -13,7 +13,7 @@ def hypergeometric_bound(n, k, only_intersection=False):
     # E[|A n B|] = k^2 / n
     # E[J] approx E[Int] / (2k - E[Int])
     if only_intersection:
-        return (k**2)/(n**2) 
+        return (k**2) / (n**2)
     else:
         return k / (2 * (n - 1) - k)
 
@@ -47,13 +47,12 @@ def compute_nngs_pytorch_batched(
     if k < 1:
         k = 1
 
-    # Search for k+1 because the point itself is index 0
-    search_k = k + 1
-
     # Move to GPU/Device
     # Assuming inputs are numpy or torch, convert to float32 tensor
-    if not isinstance(X, torch.Tensor): X = torch.tensor(X)
-    if not isinstance(Y, torch.Tensor): Y = torch.tensor(Y)
+    if not isinstance(X, torch.Tensor):
+        X = torch.tensor(X)
+    if not isinstance(Y, torch.Tensor):
+        Y = torch.tensor(Y)
 
     X = X.float().to(device)
     Y = Y.float().to(device)
@@ -64,7 +63,7 @@ def compute_nngs_pytorch_batched(
     X_sq_norms = (X**2).sum(dim=1, keepdim=True)
     Y_sq_norms = (Y**2).sum(dim=1, keepdim=True)
 
-    total_intersection = 0.0
+    total_jaccards = 0.0
 
     # 2. Batched Processing
     # We iterate through the dataset in chunks to calculate neighbors and similarity
@@ -90,6 +89,9 @@ def compute_nngs_pytorch_batched(
 
         # 3. TopK (Smallest distance is best)
         # largest=False because we want MINIMUM distance
+        # Search for k + 1 because the point itself is index 0
+        search_k = k + 1
+
         _, idx_x = torch.topk(dist_x, k=search_k, dim=1, largest=False)
         idx_x = idx_x[:, 1:]
 
@@ -104,22 +106,22 @@ def compute_nngs_pytorch_batched(
         idx_y = idx_y[:, 1:]
 
         # --- C. Vectorized Jaccard (Same as before) ---
-        matches = (idx_x.unsqueeze(2) == idx_y.unsqueeze(1))
+        matches = idx_x.unsqueeze(2) == idx_y.unsqueeze(1)
         batch_intersections = matches.sum(dim=(1, 2)).float()
         if only_intersection:
             unions = X_batch.shape[0]
         else:
-            unions = ((2 * k) - batch_intersections).clamp(min=1e-8)
-    
+            unions = (2 * k) - batch_intersections
+
         jaccards = batch_intersections / unions
 
-        total_intersection += jaccards.sum().item()
+        total_jaccards += jaccards.sum().item()
 
         # Clean memory
         del dot_x, dist_x, idx_x, dot_y, dist_y, idx_y, matches
 
-    return total_intersection / n_samples
-
+    mean_jaccards = total_jaccards / n_samples
+    return mean_jaccards
 
 
 # --- Optimized Engine ---
@@ -131,7 +133,7 @@ def compute_jaccards_torch(
     device='cuda',
     only_intersection=False,
 ):
-       # 1. Setup
+    # 1. Setup
     n_samples = X.shape[0]
 
     # Handle fractional k (e.g., 0.2 -> 20% of N)
@@ -150,8 +152,10 @@ def compute_jaccards_torch(
 
     # Move to GPU/Device
     # Assuming inputs are numpy or torch, convert to float32 tensor
-    if not isinstance(X, torch.Tensor): X = torch.tensor(X)
-    if not isinstance(Y, torch.Tensor): Y = torch.tensor(Y)
+    if not isinstance(X, torch.Tensor):
+        X = torch.tensor(X)
+    if not isinstance(Y, torch.Tensor):
+        Y = torch.tensor(Y)
 
     X = X.float().to(device)
     Y = Y.float().to(device)
@@ -202,15 +206,15 @@ def compute_jaccards_torch(
         idx_y = idx_y[:, 1:]
 
         # --- C. Vectorized Jaccard (Same as before) ---
-        matches = (idx_x.unsqueeze(2) == idx_y.unsqueeze(1))
+        matches = idx_x.unsqueeze(2) == idx_y.unsqueeze(1)
         batch_intersections = matches.sum(dim=(1, 2)).float()
         if only_intersection:
             unions = 1
         else:
             unions = ((2 * k) - batch_intersections).clamp(min=1e-8)
-    
+
         jaccards = batch_intersections / unions
         all_jaccards.append(jaccards.cpu())
-        
+
     all_jaccards = torch.cat(all_jaccards, dim=0)
     return all_jaccards.numpy()

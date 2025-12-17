@@ -1,18 +1,24 @@
 import torch
+
 from .core_similarity import Similarity
-from .nngs_core.nngs_cpu import mean_neighborhood_similarity_from_points, hypergeometric_bound, normalize_nngs
-from .nngs_core.nngs_torch import compute_nngs_pytorch_batched
+from .nngs_core.nngs_cpu import (
+    hypergeometric_bound,
+    mean_neighborhood_similarity_from_points,
+    normalize_nngs,
+)
 from .nngs_core.nngs_faiss import compute_nngs_faiss
+from .nngs_core.nngs_torch import compute_nngs_pytorch_batched
 
 
 class NNGSSimilarityCPU(Similarity):
-
-    def __init__(self,
-                 k=0.2,
-                 self_is_neighbor=False,
-                 metric='minkowski',
-                 n_jobs=1,
-                 normalize=True):
+    def __init__(
+        self,
+        k=0.2,
+        self_is_neighbor=False,
+        metric='minkowski',
+        n_jobs=1,
+        normalize=True,
+    ):
         """
         Initialize the NNGS similarity measure.
 
@@ -54,7 +60,6 @@ class NNGSSimilarityCPU(Similarity):
 
 
 class NNGSSimilarityTorch(Similarity):
-
     def __init__(
         self,
         k=0.2,
@@ -65,7 +70,7 @@ class NNGSSimilarityTorch(Similarity):
     ):
         """
         Optimized NNGS class.
-        
+
         Parameters:
         k (int or float): Number of neighbors or fraction.
         normalize (bool): Apply hypergeometric normalization.
@@ -78,9 +83,9 @@ class NNGSSimilarityTorch(Similarity):
         self.only_intersection = only_intersection
 
         if device is None:
-            if torch.cuda.is_available(): self.device = 'cuda'
-            elif hasattr(torch.backends,
-                         'mps') and torch.backends.mps.is_available():
+            if torch.cuda.is_available():
+                self.device = 'cuda'
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
                 self.device = 'mps'
             else:
                 self.device = 'cpu'
@@ -91,6 +96,17 @@ class NNGSSimilarityTorch(Similarity):
         """
         Compute NNGS similarity.
         """
+        # Remove 1 because we don't consider self-neighbors.
+        N = pc1.shape[0] - 1
+
+        # Recalculate k if it was a float, for the bound formula
+        k_val = int(self.k * N) if isinstance(self.k, float) else self.k
+
+        # Trivial case: size of neighborhood matches the number of points.
+        # In this case, all neighborhoods are identical, hence similarity is 1 trivially.
+        if k_val >= N:
+            return 1.0
+
         # Calculate raw NNGS using the PyTorch engine
         nngs_raw = compute_nngs_pytorch_batched(
             pc1,
@@ -102,17 +118,13 @@ class NNGSSimilarityTorch(Similarity):
         )
 
         if self.normalize:
-            # Recalculate k if it was a float, for the bound formula
-            N = pc1.shape[0]
-            k_val = int(self.k * N) if isinstance(self.k, float) else self.k
 
             # Apply Normalization
-            min_bound = hypergeometric_bound(N, k_val, only_intersection=self.only_intersection)
+            # Notice that min_bound would only be 1 if k >= N, which is handled above.
+            min_bound = hypergeometric_bound(
+                N, k_val, only_intersection=self.only_intersection
+            )
 
-            # Prevent div by zero if bound is 1 (weird edge case)
-            if min_bound >= 1.0:
-                return 0.0
-            
             if self.only_intersection:
                 max_bound = self.k
             else:
@@ -125,17 +137,18 @@ class NNGSSimilarityTorch(Similarity):
 
 
 class NNGSSimilarityFaiss(Similarity):
-
-    def __init__(self,
-                 k=5,
-                 approximate=False,
-                 metric='euclidean',
-                 batch_size=5000,
-                 gpu=True,
-                 normalize=True):
+    def __init__(
+        self,
+        k=5,
+        approximate=False,
+        metric='euclidean',
+        batch_size=5000,
+        gpu=True,
+        normalize=True,
+    ):
         """
         NNGS Similarity using FAISS backend.
-        
+
         Parameters:
         k (int): Number of neighbors.
         approximate (bool): Use approximate search (IVF) or exact (Flat).
@@ -155,13 +168,15 @@ class NNGSSimilarityFaiss(Similarity):
         """
         Compute NNGS similarity using FAISS.
         """
-        nngs_raw = compute_nngs_faiss(pc1,
-                                      pc2,
-                                      k=self.k,
-                                      approximate=self.approximate,
-                                      metric=self.metric,
-                                      batch_size=self.batch_size,
-                                      gpu=self.gpu)
+        nngs_raw = compute_nngs_faiss(
+            pc1,
+            pc2,
+            k=self.k,
+            approximate=self.approximate,
+            metric=self.metric,
+            batch_size=self.batch_size,
+            gpu=self.gpu,
+        )
 
         if self.normalize:
             N = pc1.shape[0]
