@@ -155,11 +155,39 @@ def get_bert_embeddings(model_name,
 
     return torch.cat(embeddings, dim=0)
 
+def classify_with_finetuned_bert(model_name,
+                                  tokenizer_name,
+                                  texts,
+                                  device='cuda',
+                                  ):
+    print(f"Loading {model_name}...")
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name).to(
+        device)
+    model.eval()
+    predictions = []
+    # Iterate with small batch size to avoid VRAM issues
+    batch_size = 32
+    with torch.no_grad():
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i + batch_size]
+            inputs = tokenizer(batch_texts,
+                               padding=True,
+                               truncation=True,
+                               max_length=128,
+                               return_tensors="pt").to(device)
+
+            outputs = model(**inputs)
+            logits = outputs.logits
+            preds = torch.argmax(F.softmax(logits, dim=1), dim=1)
+            predictions.extend(preds.cpu().tolist())
+    return predictions
 
 def get_finetuned_bert_embeddings(model_name,
                                   tokenizer_name,
                                   texts,
-                                  device='cuda'):
+                                  device='cuda',
+                                  ):
     print(f"Loading {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name).to(
@@ -268,3 +296,25 @@ def get_finetuned_gptx_embeddings(base_model_name,
     last = out.hidden_states[-1][torch.arange(out.hidden_states[-1].size(0)), n_tokens, :]
     print(last.shape)
     return last.cpu()
+
+
+
+similarities = {
+    'CKA linear': CKASimilarity(kernel='linear'),
+    'CKA RBF ($\alpha=0.2$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.2),
+    'CKA RBF ($\alpha=0.4$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.4),
+    'CKA RBF ($\alpha=0.8$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.8),
+    'NNGS (k=10)': NNGSSimilarityTorch(k=10, normalize=True),
+    'NNGS (k=125)': NNGSSimilarityTorch(k=125, normalize=True),
+    'NNGS (k=250)': NNGSSimilarityTorch(k=250, normalize=True),
+    'GULP': GULPSimilarity(),
+    'Procrustes': ProcrustesSimilarity(),
+    'GW': GWSimilarity(),
+    'PWCCA': PWCCASimilarity(symmetric=True),
+}
+
+def calculate_all_similaritiees(X, Y, similarities):
+    results = {}
+    for name, sim in similarities.items():
+        results[name] = sim(X, Y)
+    return results

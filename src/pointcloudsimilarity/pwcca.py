@@ -7,6 +7,15 @@ from .legacy.pwcca import compute_pwcca
 import numpy as np
 
 class PWCCASimilarity(Similarity):
+    def __init__(self, symmetric=False):
+        """
+        Initialize the PWCCA similarity measure.
+
+        Parameters:
+        symmetric (bool): If True, compute symmetric PWCCA by averaging
+                          PWCCA(pc1, pc2) and PWCCA(pc2, pc1).
+        """
+        self.symmetric = symmetric
     def __call__(self, pc1, pc2, **kwargs):
         """
         Compute the PWCCA similarity between two point clouds.
@@ -19,7 +28,13 @@ class PWCCASimilarity(Similarity):
         Returns:
         float: PWCCA similarity between the two point clouds.
         """
-        sim, _, _ = compute_pwcca(pc1.T, pc2.T, epsilon=1e-10)
+        try:
+            sim, _, _ = compute_pwcca(pc1.T, pc2.T, epsilon=1e-10)
+            if self.symmetric:
+                sim_rev, _, _ = compute_pwcca(pc2.T, pc1.T, epsilon=1e-10)
+                sim = 0.5 * (sim + sim_rev)
+        except Exception as e:
+            sim = None
         return sim
 
 

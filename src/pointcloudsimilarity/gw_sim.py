@@ -41,15 +41,15 @@ def gw_sim(X1, X2, epsilon=1e-10):
     C1 = cdist(X1, X1, metric='euclidean')
     C2 = cdist(X2, X2, metric='euclidean')
 
-    # Normalize the distance matrices (common practice)
-    C1 /= C1.max()
-    C2 /= C2.max()
+    # # Normalize the distance matrices (common practice)
+    # C1 /= C1.max()
+    # C2 /= C2.max()
 
     # --- 3. Define the distributions on the points (uniform in this case) ---
     p = ot.unif(n_points)
     q = ot.unif(n_points)
 
     # --- 4. Compute the Gromov-Wasserstein distance ---
-    _,  log = ot.gromov.gromov_wasserstein(C1, C2, p, q, loss_fun='square_loss', log=True)
+    gw_dist = ot.gromov.gromov_wasserstein2(C1, C2, p, q, loss_fun='square_loss')
 
-    return -log['gw_dist']  # Return similarity as inverse of distance
+    return 1/(1+gw_dist)

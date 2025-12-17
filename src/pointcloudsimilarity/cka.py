@@ -3,7 +3,7 @@ import numpy as np
 from .core_similarity import Similarity
 
 class CKASimilarity(Similarity):
-    def __init__(self, kernel='linear', sigma=None, device=None, scale_by_dim=False, scale_by_alpha=None, initial_quantile=0.5):
+    def __init__(self, kernel='linear', sigma=None, device=None, scale_by_dim=False, scale_by_alpha : None | float = None, initial_quantile=0.5):
         """
         PyTorch-Optimized CKA Similarity.
         

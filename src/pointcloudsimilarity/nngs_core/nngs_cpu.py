@@ -7,7 +7,7 @@ import scipy.stats as stats
 
 
 def hypergeometric_bound(n, k, only_intersection=False):
-    if n <= 1 or k >= n:
+    if n < 1 or k > n:
         return 0.0  # Edge cases
     # Derived from Hypergeometric distribution mean for intersection size
     # E[|A n B|] = k^2 / n
@@ -15,7 +15,7 @@ def hypergeometric_bound(n, k, only_intersection=False):
     if only_intersection:
         return k**2/n 
     else:
-        return k / (2 * (n - 1) - k)
+        return k / (2 * n - k)
 
 def normalize_nngs(similarity, n_points, k):
     """
