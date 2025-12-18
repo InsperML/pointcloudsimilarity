@@ -18,6 +18,7 @@ from pointcloudsimilarity.similarities import (
     NNGSSimilarityTorch,
     ProcrustesSimilarity,
     PWCCASimilarity,
+    RTDSimilarity
 )
 
 script_dir = Path(__file__).parent

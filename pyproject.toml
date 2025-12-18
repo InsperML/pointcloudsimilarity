@@ -17,6 +17,8 @@ dependencies = [
     "pot>=0.9.6.post1",
     "protobuf>=6.33.1",
     "pytest>=9.0.1",
+    "ripserplusplus",
+    "rtd",
     "scikit-learn>=1.7.2",
     "scipy>=1.16.3",
     "sentence-transformers>=5.1.2",
@@ -41,3 +43,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "--benchmark-columns=mean,min,max,stddev"
+
+[tool.uv.sources]
+rtd = { git = "https://github.com/IlyaTrofimov/RTD.git" }
+ripserplusplus = { git = "https://github.com/simonzhang00/ripser-plusplus.git" }

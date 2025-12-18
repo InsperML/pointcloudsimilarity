@@ -50,6 +50,6 @@ def gw_sim(X1, X2, epsilon=1e-10):
     q = ot.unif(n_points)
 
     # --- 4. Compute the Gromov-Wasserstein distance ---
-    gw_dist = ot.gromov.gromov_wasserstein2(C1, C2, p, q, loss_fun='square_loss')
+    gw_dist = ot.gromov.gromov_wasserstein2(C1, C2, p, q, loss_fun='square_loss', max_iter=1e6)
 
     return 1/(1+gw_dist)

@@ -17,7 +17,7 @@ from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                NNGSSimilarityTorch,
                                                ProcrustesSimilarity,
-                                               PWCCASimilarity)
+                                               PWCCASimilarity, RTDSimilarity)
 import torch.nn.functional as F
 from sklearn.datasets import load_digits
 from sentence_transformers import SentenceTransformer
@@ -117,21 +117,22 @@ def similarities_model_vs_finetuning(dataset='imdb',
     opt_k = int(len(texts) / n_labels)
     print(opt_k)
     similarities = {
-        'cka linear':
+        'CKA Linear':
         CKASimilarity(kernel='linear'),
-        'cka rbf':
+        'CKA RBF':
         CKASimilarity(kernel='rbf'),
-        'nngs (k=10)':
-        NNGSSimilarityTorch(k=10, normalize=True, batch_size=150),
-        'nngs (k=cluster size)':
-        NNGSSimilarityTorch(k=opt_k, normalize=True, batch_size=150),
-        'gulp':
+        'GULP':
         GULPSimilarity(),
-        'procrustes':
+        'Procrustes':
         ProcrustesSimilarity(),
-        #'gw': GWSimilarity(),
-        'pwcca':
+        'GW': GWSimilarity(),
+        'PWCCA':
         PWCCASimilarity(),
+        'RTD': RTDSimilarity(),
+        'NNGS ($k=10$)':
+        NNGSSimilarityTorch(k=10, normalize=True, batch_size=150),
+        f'NNGS ($k={opt_k}$)':
+        NNGSSimilarityTorch(k=opt_k, normalize=True, batch_size=150),
     }
 
     print("Getting embeddings...")
@@ -192,13 +193,14 @@ def similarities_model_vs_finetuning(dataset='imdb',
     plt.plot(ks_bert_finetuned,
              similarities_nngs_bert_finetuned,
              label="FT vs. FT")
-    plt.plot(ks_bert_finetuned0,
-             similarities_nngs_bert_finetuned0,
-             label="PT vs. FT")
     plt.plot(ks_bert_inits,
              similarities_nngs_bert_inits,
              label="PT vs. PT",
-             linestyle='dashed')
+             #linestyle='dashed',
+             )
+    plt.plot(ks_bert_finetuned0,
+             similarities_nngs_bert_finetuned0,
+             label="PT vs. FT")
     # plt.plot(ks_bert_finetuned_unsup,
     #          similarities_nngs_bert_finetuned_unsup,
     #          label="FT unsup. vs. FT unsup.",
@@ -211,7 +213,7 @@ def similarities_model_vs_finetuning(dataset='imdb',
         loc="upper center",  # position relative to bbox
         bbox_to_anchor=(0.5, -0.3),  # center it below the axes
         ncol=3,
-        fontsize="xx-small",  # number of columns
+        #fontsize="xx-small",  # number of columns
     )
 
     plt.tight_layout()
@@ -234,12 +236,13 @@ def similarities_model_vs_finetuning(dataset='imdb',
     #     emb_bert0_ft_unsup1.detach().cpu().numpy(), similarities)
 
     df_pt_seeds = pd.DataFrame({
+        'FT vs. FT':
+        sim_ft_ft,
         'PT vs. PT':
         sim_pt_pt,
         'PT vs. FT':
         sim_pt_ft,
-        'FT vs. FT':
-        sim_ft_ft,
+
         # 'FT unsup. vs. FT unsup.':
         # sim_ft_unsup_ft_unsup,
     })

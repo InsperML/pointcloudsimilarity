@@ -16,7 +16,8 @@ from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                NNGSSimilarityTorch,
                                                ProcrustesSimilarity,
-                                               PWCCASimilarity)
+                                               PWCCASimilarity,
+                                               RTDSimilarity)
 import torch.nn.functional as F
 from sklearn.datasets import load_digits
 from sentence_transformers import SentenceTransformer
@@ -300,7 +301,7 @@ def get_finetuned_gptx_embeddings(base_model_name,
 
 
 similarities = {
-    'CKA linear': CKASimilarity(kernel='linear'),
+    'CKA Linear': CKASimilarity(kernel='linear'),
     'CKA RBF ($\\alpha=0.2$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.2),
     'CKA RBF ($\\alpha=0.4$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.4),
     'CKA RBF ($\\alpha=0.8$)': CKASimilarity(kernel='rbf', scale_by_alpha=0.8),
@@ -308,6 +309,7 @@ similarities = {
     'Procrustes': ProcrustesSimilarity(),
     'GW': GWSimilarity(),
     'PWCCA': PWCCASimilarity(symmetric=True),
+    'RTD': RTDSimilarity(),
     'NNGS ($k=10$)': NNGSSimilarityTorch(k=10, normalize=True),
     'NNGS ($k=125$)': NNGSSimilarityTorch(k=125, normalize=True),
     'NNGS ($k=250$)': NNGSSimilarityTorch(k=250, normalize=True),
@@ -316,5 +318,6 @@ similarities = {
 def calculate_all_similaritiees(X, Y, similarities):
     results = {}
     for name, sim in similarities.items():
+        print("Calculating similarity:", name)
         results[name] = sim(X, Y)
     return results
