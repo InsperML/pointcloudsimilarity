@@ -14,7 +14,8 @@ import torch
 import pointcloudsimilarity.similarities as pcsim
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               NNGSSimilarityTorch,
+                                               TASSimilarityTorch,
+                                               TASSimilarityFaiss,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity,
                                                RTDSimilarity)
@@ -309,10 +310,10 @@ similarities = {
     'Procrustes': ProcrustesSimilarity(),
     'GW': GWSimilarity(),
     'PWCCA': PWCCASimilarity(symmetric=True),
-    'RTD': RTDSimilarity(),
-    'NNGS ($k=10$)': NNGSSimilarityTorch(k=10, normalize=True),
-    'NNGS ($k=125$)': NNGSSimilarityTorch(k=125, normalize=True),
-    'NNGS ($k=250$)': NNGSSimilarityTorch(k=250, normalize=True),
+    #'RTD': RTDSimilarity(),
+    'NNGS ($k=10$)': TASSimilarityTorch(k=10, normalize=True),
+    'NNGS ($k=125$)': TASSimilarityTorch(k=125, normalize=True),
+    'NNGS ($k=250$)': TASSimilarityTorch(k=250, normalize=True),
 }
 
 def calculate_all_similaritiees(X, Y, similarities):

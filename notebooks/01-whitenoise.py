@@ -5,7 +5,7 @@ from pointcloudsimilarity.similarities import (
     GULPSimilarity,
     ProcrustesSimilarity,
     GWSimilarity,
-    NNGSSimilarityFaiss as NNGSSimilarity,
+    TASSimilarityFaiss as NNGSSimilarity,
     PWCCASimilarity,
 )
 

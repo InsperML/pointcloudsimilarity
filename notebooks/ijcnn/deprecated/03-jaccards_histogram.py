@@ -3,11 +3,11 @@ from pointcloudsimilarity.similarities import (
     GULPSimilarity,
     ProcrustesSimilarity,
     GWSimilarity,
-    NNGSSimilarityTorch,
+    TASSimilarityTorch,
     PWCCASimilarity,
 )
 
-from pointcloudsimilarity.nngs_core.nngs_torch import compute_jaccards_torch
+from pointcloudsimilarity.tas_core.tas_torch import compute_jaccards_torch
 
 import toml
 from pathlib import Path

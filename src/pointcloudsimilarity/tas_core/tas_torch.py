@@ -19,7 +19,7 @@ def hypergeometric_bound(n, k, only_intersection=False):
 
 
 # --- Optimized Engine ---
-def compute_nngs_pytorch_batched(
+def compute_tas_pytorch_batched(
     X,
     Y,
     k,

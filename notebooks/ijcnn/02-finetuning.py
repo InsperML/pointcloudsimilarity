@@ -15,7 +15,7 @@ import pandas as pd
 import pointcloudsimilarity.similarities as pcsim
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               NNGSSimilarityTorch,
+                                               TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity, RTDSimilarity)
 import torch.nn.functional as F
@@ -61,7 +61,7 @@ def sweep_model_similarity(X, Y):
     #ks = np.arange(1, 500, 1)
     similarities_nngs = []
     for k in tqdm(ks):
-        metric = NNGSSimilarityTorch(k=k, batch_size=100, normalize=True)
+        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
         #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
         #t0 = time.perf_counter()
         sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
@@ -128,11 +128,11 @@ def similarities_model_vs_finetuning(dataset='imdb',
         'GW': GWSimilarity(),
         'PWCCA':
         PWCCASimilarity(),
-        'RTD': RTDSimilarity(),
+        #'RTD': RTDSimilarity(),
         'NNGS ($k=10$)':
-        NNGSSimilarityTorch(k=10, normalize=True, batch_size=150),
+        TASSimilarityTorch(k=10, normalize=True, batch_size=150),
         f'NNGS ($k={opt_k}$)':
-        NNGSSimilarityTorch(k=opt_k, normalize=True, batch_size=150),
+        TASSimilarityTorch(k=opt_k, normalize=True, batch_size=150),
     }
 
     print("Getting embeddings...")
@@ -206,7 +206,7 @@ def similarities_model_vs_finetuning(dataset='imdb',
     #          label="FT unsup. vs. FT unsup.",
     #          linestyle='dotted')
     plt.xlabel("$k$")
-    plt.ylabel("$NNGS(X, Y, k)$")
+    plt.ylabel("$TA(X, Y, k)$")
 
     plt.ylim(0, 1)
     plt.legend(

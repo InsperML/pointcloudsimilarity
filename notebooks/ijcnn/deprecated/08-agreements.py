@@ -23,7 +23,7 @@ from umap import UMAP
 import pointcloudsimilarity.similarities as pcsim
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               NNGSSimilarityTorch,
+                                               TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 
@@ -58,7 +58,7 @@ def sweep_model_similarity(X, Y):
     #ks = np.arange(1, 500, 1)
     similarities_nngs = []
     for k in tqdm(ks):
-        metric = NNGSSimilarityTorch(k=k, batch_size=100, normalize=True)
+        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
         #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
         #t0 = time.perf_counter()
         sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
@@ -96,8 +96,8 @@ def get_dataset(dataset_name,
 similarities = {
     'cka linear': CKASimilarity(kernel='linear'),
     'cka rbf': CKASimilarity(kernel='rbf'),
-    'nngs (k=10)': NNGSSimilarityTorch(k=10, normalize=True),
-    'nngs (k=125)': NNGSSimilarityTorch(k=125, normalize=True),
+    'nngs (k=10)': TASSimilarityTorch(k=10, normalize=True),
+    'nngs (k=125)': TASSimilarityTorch(k=125, normalize=True),
     'gulp': GULPSimilarity(),
     'procrustes': ProcrustesSimilarity(),
     #'gw': GWSimilarity(),
@@ -212,11 +212,11 @@ def similarities_model_vs_finetuning(dataset='sst2',
             "Embeddings and classifcaittons extracted. Calculating agreement rates and similarities..."
         )
 
-        metric_low = NNGSSimilarityTorch(k=3, batch_size=100, normalize=True)
-        metric_high = NNGSSimilarityTorch(k=actual_n_samples // 2,
+        metric_low = TASSimilarityTorch(k=3, batch_size=100, normalize=True)
+        metric_high = TASSimilarityTorch(k=actual_n_samples // 2,
                                           batch_size=100,
                                           normalize=True)
-        metric_very_high = NNGSSimilarityTorch(k=3 * actual_n_samples // 4,
+        metric_very_high = TASSimilarityTorch(k=3 * actual_n_samples // 4,
                                                 batch_size=100,
                                                 normalize=True)
         cka = CKASimilarity(kernel='linear')

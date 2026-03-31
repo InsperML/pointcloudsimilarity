@@ -3,7 +3,7 @@ import pickle
 import torch
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               NNGSSimilarityTorch,
+                                               TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 import torch.nn.functional as F

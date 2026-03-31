@@ -3,7 +3,7 @@ from pointcloudsimilarity.similarities import (
     GULPSimilarity,
     ProcrustesSimilarity,
     GWSimilarity,
-    NNGSSimilarityTorch,
+    TASSimilarityTorch,
     PWCCASimilarity,
 )
 import pandas as pd
@@ -75,9 +75,9 @@ similarities = {
     'cka rbf (alpha=0.2)': CKASimilarity(kernel='rbf', scale_by_alpha=0.2),
     'cka rbf (alpha=0.4)': CKASimilarity(kernel='rbf', scale_by_alpha=0.4),
     'cka rbf (alpha=0.8)': CKASimilarity(kernel='rbf', scale_by_alpha=0.8),
-    'nngs (k=10)': NNGSSimilarityTorch(k=10, normalize=True),
+    'nngs (k=10)': TASSimilarityTorch(k=10, normalize=True),
     #'nngs (k=125)': NNGSSimilarityTorch(k=125, normalize=True),
-    'nngs (k=250)': NNGSSimilarityTorch(k=250, normalize=True),
+    'nngs (k=250)': TASSimilarityTorch(k=250, normalize=True),
     
     'gulp': GULPSimilarity(),
     'procrustes': ProcrustesSimilarity(),
@@ -95,7 +95,7 @@ def nngs_sweeep(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
     results = []
     for k in ks:
-        nngs = NNGSSimilarityTorch(
+        nngs = TASSimilarityTorch(
             k=k,
             normalize=True,
         )

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from training import MLP
 
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
-                                               GWSimilarity, NNGSSimilarityFaiss, NNGSSimilarityTorch,
+                                               GWSimilarity, TASSimilarityFaiss, TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 
@@ -29,12 +29,12 @@ my_metrics = {
     #"gulp": GULPSimilarity(),
     #"procrustes": ProcrustesSimilarity(),
     #"gw_sim": GWSimilarity(),
-    "nngs_k100": NNGSSimilarityTorch(k=100, batch_size=5000, normalize=False),
-    "nngs_k30": NNGSSimilarityTorch(k=30, batch_size=5000, normalize=False),
+    "nngs_k100": TASSimilarityTorch(k=100, batch_size=5000, normalize=False),
+    "nngs_k30": TASSimilarityTorch(k=30, batch_size=5000, normalize=False),
     #"nngs_k40": NNGSSimilarityFaiss(k=40, n_jobs=-1, normalize=True),
-    "nngs_k10": NNGSSimilarityTorch(k=10, batch_size=5000, normalize=False),
-    "nngs_k3": NNGSSimilarityTorch(k=3, batch_size=5000, normalize=False),
-    "nngs_k1": NNGSSimilarityTorch(k=1, batch_size=5000, normalize=False),
+    "nngs_k10": TASSimilarityTorch(k=10, batch_size=5000, normalize=False),
+    "nngs_k3": TASSimilarityTorch(k=3, batch_size=5000, normalize=False),
+    "nngs_k1": TASSimilarityTorch(k=1, batch_size=5000, normalize=False),
 }
 
 input_size = 10
@@ -146,7 +146,7 @@ embeddings = intermediate_embeddings
 ks = np.arange(1, 500, 1)
 similarities_nngs = []
 for k in tqdm(ks):
-    metric = NNGSSimilarityTorch(k=k, batch_size=5000, normalize=True)
+    metric = TASSimilarityTorch(k=k, batch_size=5000, normalize=True)
     #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
     t0 = time.perf_counter()
     sim = similarity_between_layers(

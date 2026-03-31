@@ -1,16 +1,16 @@
 import torch
 
 from .core_similarity import Similarity
-from .nngs_core.nngs_cpu import (
+from .tas_core.tas_cpu import (
     hypergeometric_bound,
     mean_neighborhood_similarity_from_points,
-    normalize_nngs,
+    normalize_tas,
 )
-from .nngs_core.nngs_faiss import compute_nngs_faiss
-from .nngs_core.nngs_torch import compute_nngs_pytorch_batched
+from .tas_core.tas_faiss import compute_nngs_faiss, TASFAISS
+from .tas_core.tas_torch import compute_tas_pytorch_batched
 
 
-class NNGSSimilarityCPU(Similarity):
+class TASSimilarityCPU(Similarity):
     def __init__(
         self,
         k=0.2,
@@ -54,12 +54,12 @@ class NNGSSimilarityCPU(Similarity):
             metric=self.metric,
         )
         if self.normalize:
-            nngs = normalize_nngs(nngs, pc1.shape[0], self.k)
+            nngs = normalize_tas(nngs, pc1.shape[0], self.k)
 
         return nngs
 
 
-class NNGSSimilarityTorch(Similarity):
+class TASSimilarityTorch(Similarity):
     def __init__(
         self,
         k=0.2,
@@ -69,7 +69,7 @@ class NNGSSimilarityTorch(Similarity):
         only_intersection=False,
     ):
         """
-        Optimized NNGS class.
+        Optimized TAS class.
 
         Parameters:
         k (int or float): Number of neighbors or fraction.
@@ -94,7 +94,7 @@ class NNGSSimilarityTorch(Similarity):
 
     def __call__(self, pc1, pc2, **kwargs):
         """
-        Compute NNGS similarity.
+        Compute TAS similarity.
         """
         # Remove 1 because we don't consider self-neighbors.
         N = pc1.shape[0] - 1
@@ -108,7 +108,7 @@ class NNGSSimilarityTorch(Similarity):
             return 1.0
 
         # Calculate raw NNGS using the PyTorch engine
-        nngs_raw = compute_nngs_pytorch_batched(
+        nngs_raw = compute_tas_pytorch_batched(
             pc1,
             pc2,
             k=self.k,
@@ -136,7 +136,7 @@ class NNGSSimilarityTorch(Similarity):
         return nngs_raw
 
 
-class NNGSSimilarityFaiss(Similarity):
+class TASSimilarityFaiss(Similarity):
     def __init__(
         self,
         k=5,
@@ -147,7 +147,7 @@ class NNGSSimilarityFaiss(Similarity):
         normalize=True,
     ):
         """
-        NNGS Similarity using FAISS backend.
+        TAS Similarity using FAISS backend.
 
         Parameters:
         k (int): Number of neighbors.
@@ -163,19 +163,25 @@ class NNGSSimilarityFaiss(Similarity):
         self.batch_size = batch_size
         self.gpu = gpu
         self.normalize = normalize
+        self.trained = False
+        self.faiss_calculator = None
 
     def __call__(self, pc1, pc2, **kwargs):
         """
-        Compute NNGS similarity using FAISS.
+        Compute TAS similarity using FAISS.
         """
-        nngs_raw = compute_nngs_faiss(
-            pc1,
-            pc2,
+        if self.trained==False:
+            self.faiss_calculator = TASFAISS(
+                approximate=self.approximate,
+                metric=self.metric,
+                gpu=self.gpu,
+            )
+            self.faiss_calculator.fit(pc1, pc2)
+            self.trained = True
+        
+        tas_raw = self.faiss_calculator(
             k=self.k,
-            approximate=self.approximate,
-            metric=self.metric,
             batch_size=self.batch_size,
-            gpu=self.gpu,
         )
 
         if self.normalize:
@@ -187,7 +193,7 @@ class NNGSSimilarityFaiss(Similarity):
             if min_bound >= 1.0:
                 return 0.0
 
-            nngs_normalized = (nngs_raw - min_bound) / (1 - min_bound)
-            return nngs_normalized
+            tas_normalized = (tas_raw - min_bound) / (1 - min_bound)
+            return tas_normalized
 
-        return nngs_raw
+        return tas_raw

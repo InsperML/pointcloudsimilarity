@@ -3,7 +3,7 @@ from pointcloudsimilarity.similarities import (
     GULPSimilarity,
     ProcrustesSimilarity,
     GWSimilarity,
-    NNGSSimilarityTorch,
+    TASSimilarityTorch,
     PWCCASimilarity,
 )
 
@@ -38,7 +38,7 @@ def sweep_distribution_alpha(distribution, distribution_name, N, D):
     results = np.zeros( (len(alphas), len(ks), num_runs) )
 
     for idx_alpha, idx_k, idx_run in tqdm(product(range(len(alphas)), range(len(ks)), range(num_runs))):
-        nngs = NNGSSimilarityTorch(
+        nngs = TASSimilarityTorch(
             k=ks[idx_k],
             normalize=True,
         )

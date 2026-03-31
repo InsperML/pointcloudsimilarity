@@ -17,17 +17,17 @@ def hypergeometric_bound(n, k, only_intersection=False):
         return k / (2 * n - k)
 
 
-def normalize_nngs(similarity, n_points, k):
+def normalize_tas(similarity, n_points, k):
     """
-    Normalize NNGS similarity using hypergeometric bound.
+    Normalize TAS similarity using hypergeometric bound.
 
     Parameters:
-    similarity (float): Raw NNGS similarity.
+    similarity (float): Raw TAS similarity.
     n_points (int): Number of points in the point clouds.
     k (int): Number of neighbors used in NNGS.
 
     Returns:
-    float: Normalized NNGS similarity.
+    float: Normalized TAS similarity.
     """
     min_bound = hypergeometric_bound(n_points - 1, k)
     normalized_similarity = (similarity - min_bound) / (1 - min_bound)

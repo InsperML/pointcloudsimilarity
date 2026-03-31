@@ -15,7 +15,7 @@ from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
     GWSimilarity,
-    NNGSSimilarityTorch,
+    TASSimilarityTorch,
     ProcrustesSimilarity,
     PWCCASimilarity,
     RTDSimilarity
@@ -79,7 +79,7 @@ def nngs_sweeep(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
     results = []
     for k in ks:
-        nngs = NNGSSimilarityTorch(
+        nngs = TASSimilarityTorch(
             k=k,
             normalize=True,
         )
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     # plt.plot(ks, np.array(ks)**2 / N**2, 'k:', label='Expected value')
     plt.xlabel('$k$')
     # plt.semilogy()
-    plt.ylabel('NNGS$(X, Y, k)$')
+    plt.ylabel('TA$(X, Y, k)$')
     # plt.title("NNGS Similarity under Increasing Noise for Various k")
 
     # plt.legend(bbox_to_anchor=(0.5, -0.30), loc='upper center', ncol=4,

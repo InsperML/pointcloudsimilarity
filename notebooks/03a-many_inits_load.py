@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from training import MLP
 
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
-                                               GWSimilarity, NNGSSimilarityFaiss, NNGSSimilarityTorch,
+                                               GWSimilarity, TASSimilarityFaiss, TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 
@@ -29,12 +29,12 @@ my_metrics = {
     #"gulp": GULPSimilarity(),
     #"procrustes": ProcrustesSimilarity(),
     #"gw_sim": GWSimilarity(),
-    "nngs_k100": NNGSSimilarityTorch(k=100, batch_size=5000, normalize=True),
-    "nngs_k30": NNGSSimilarityTorch(k=30, batch_size=5000, normalize=True),
+    "nngs_k100": TASSimilarityTorch(k=100, batch_size=5000, normalize=True),
+    "nngs_k30": TASSimilarityTorch(k=30, batch_size=5000, normalize=True),
     #"nngs_k40": NNGSSimilarityFaiss(k=40, n_jobs=-1, normalize=True),
-    "nngs_k10": NNGSSimilarityTorch(k=10, batch_size=5000, normalize=True),
-    "nngs_k3": NNGSSimilarityTorch(k=3, batch_size=5000, normalize=True),
-    "nngs_k1": NNGSSimilarityTorch(k=1, batch_size=5000, normalize=True),
+    "nngs_k10": TASSimilarityTorch(k=10, batch_size=5000, normalize=True),
+    "nngs_k3": TASSimilarityTorch(k=3, batch_size=5000, normalize=True),
+    "nngs_k1": TASSimilarityTorch(k=1, batch_size=5000, normalize=True),
 }
 
 input_size = 10

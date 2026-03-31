@@ -3,7 +3,7 @@ import pickle
 import torch
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               NNGSSimilarityTorch,
+                                               TASSimilarityTorch,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 import torch.nn.functional as F
@@ -53,7 +53,7 @@ def sweep_model_similarity(X, Y):
     ks = np.arange(1, 500, 10)
     similarities_nngs = []
     for k in tqdm(ks):
-        metric = NNGSSimilarityTorch(k=k, batch_size=100, normalize=True)
+        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
         #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
         #t0 = time.perf_counter()
         sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
@@ -154,7 +154,7 @@ def glove_experiment_noise_sweep():
     for alpha in tqdm(alphas):
         for k in ks:
             Y = X * (1 - alpha) + torch.randn_like(X) * alpha
-            metric = NNGSSimilarityTorch(k=k, batch_size=100, normalize=True)
+            metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
             sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
             if k not in nngs:
                 nngs[k] = []

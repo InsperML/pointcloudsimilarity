@@ -58,13 +58,13 @@ from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
     GWSimilarity,
-    NNGSSimilarityTorch,
+    TASSimilarityTorch,
     ProcrustesSimilarity,
     PWCCASimilarity,
     RTDSimilarity
 )
 
-my_similarity = NNGSSimilarityTorch(k=3) # or choose other similarities?
+my_similarity = TASSimilarityTorch(k=3) # or choose other similarities?
 sim = my_similarity(pc1, pc2) # point cloud 1, point cloud 2 - paired point clouds
 ```
 
