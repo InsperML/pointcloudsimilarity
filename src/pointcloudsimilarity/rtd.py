@@ -8,8 +8,15 @@
 
 import numpy as np
 from .core_similarity import Similarity
-import rtd
+try:
+    import rtd
+    HAS_RTD = True
+except ImportError as e:
+    logging.error("RTD is not installed. Please install it to use this feature.")
+    HAS_RTD = False
+    
 import logging
+
 
 class RTDSimilarity(Similarity):
     def __init__(self):
@@ -30,5 +37,7 @@ class RTDSimilarity(Similarity):
         Returns:
         float: RTD similarity between the two point clouds.
         """
+        if not HAS_RTD:
+            return 0.0  # or raise an exception, depending on how you want to handle this case
         return 1/(1+rtd.rtd(pc1, pc2))
 
