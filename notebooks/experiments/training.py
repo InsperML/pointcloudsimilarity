@@ -56,17 +56,19 @@ def train_one_batch(X, y, model, optimizer, criterion):
     return loss.item()
 
 
-def main():
-    n_samples = 1000
-    n_features = 50
-    n_classes = 50
-    hidden_dim = n_features * 100
-    epochs = 80
+def experiment(
+    n_samples,
+    n_features,
+    n_classes,
+    hidden_dim,
+    epochs,
+    cluster_std,
+):
     X_, y_ = make_blobs(
         n_samples=n_samples,
         n_features=n_features,
         centers=n_classes,
-        cluster_std=10,
+        cluster_std=cluster_std,
         random_state=42,
     )
     X_tensor = torch.Tensor(X_).to(device)
@@ -91,7 +93,7 @@ def main():
     optimizer2 = torch.optim.Adam(model2.parameters(), lr=0.001)
 
     # Training loop
-  
+
     similarities = []
     losses1 = []
     losses2 = []
@@ -105,62 +107,86 @@ def main():
                                     optimizer2, criterion)
             loss1_local += loss1
             loss2_local += loss2
-        
+
         losses1.append(loss1_local / len(dataloader))
         losses2.append(loss2_local / len(dataloader))
-        
+
         with torch.no_grad():
             z1 = model1(X_tensor)
             z2 = model2(X_tensor)
-            ks, similarities_nngs = sweep_model_similarity(z1.cpu().numpy(), z2.cpu().numpy())
+            ks, similarities_nngs = sweep_model_similarity(
+                z1.cpu().numpy(),
+                z2.cpu().numpy())
             similarities.append(similarities_nngs)
-            
-            
-            
+
         if (epoch + 1) % 10 == 0:
             print(
                 f"Epoch {epoch + 1}/{epochs}, Loss1: {loss1:.4f}, Loss2: {loss2:.4f}"
             )
-            
+
     with torch.no_grad():
         z1 = model1(X_tensor)
         z2 = model2(X_tensor)
-        ks, similarities_nngs = sweep_model_similarity(z1.cpu().numpy(), z2.cpu().numpy())
+        ks, similarities_nngs = sweep_model_similarity(z1.cpu().numpy(),
+                                                       z2.cpu().numpy())
         similarities.append(similarities_nngs)
 
-    print(z1[:2,:])
-    print(F.softmax(z1[:2,:], dim=1))
-    print(z2[:2,:])
-    print(F.softmax(z2[:2,:], dim=1))
+    print(z1[:2, :])
+    print(F.softmax(z1[:2, :], dim=1))
+    print(z2[:2, :])
+    print(F.softmax(z2[:2, :], dim=1))
 
     plt.figure(figsize=(config['width'], config['height']))
     similarities = np.array(similarities).T
     plt.imshow(similarities, aspect='auto', cmap='viridis')
     plt.colorbar(label='Similarity')
-    
+
     plt.ylabel("$\\alpha$")
     plt.xlabel("Epoch")
     plt.title("Model Similarity Over Time")
     plt.savefig(
-        script_dir / config['output_dir'] / 'training_similarity.pdf',
+        script_dir / config['output_dir'] / f'training_similarity_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,
         bbox_inches='tight',
     )
-    
+
     plt.figure(figsize=(config['width'], config['height']))
     plt.plot(losses1, label='Model 1 Loss')
     plt.plot(losses2, label='Model 2 Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    
+
     plt.title('Training Loss Over Time')
     plt.legend()
     plt.savefig(
-        script_dir / config['output_dir'] / 'training_loss.pdf',
+        script_dir / config['output_dir'] / f'training_loss_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,
         bbox_inches='tight',
     )
-    
+
+
+def main():
+    from itertools import product
+    for n_samples, n_features, n_classes, hidden_dim, epochs, cluster_std in product(
+        [1000],
+        [5, 10],
+        [5],
+        [2, 5, 50],
+        [40],
+        [0.1, 5, 10],
+    ):
+        print(
+            f"Running experiment with n_samples={n_samples}, n_features={n_features}, n_classes={n_classes}, hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}"
+        )
+        experiment(
+            n_samples,
+            n_features,
+            n_classes,
+            hidden_dim,
+            epochs,
+            cluster_std,
+        )
+
 
 if __name__ == "__main__":
     main()
