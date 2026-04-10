@@ -1,0 +1,4 @@
+[figures]
+width=5
+height=3
+output_dir='./figures/'
