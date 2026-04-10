@@ -1,18 +1,18 @@
-import time
-from typing import DefaultDict
-from transformers import AutoModel, AutoTokenizer, AutoModelForSequenceClassification
+# import time
+# from typing import DefaultDict
+# from transformers import AutoModel, AutoTokenizer, AutoModelForSequenceClassification
 from datasets import load_dataset
-from transformers import BitsAndBytesConfig
+# from transformers import BitsAndBytesConfig
 import lib_get_embeddings as lib_emb
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_blobs
-from sklearn.metrics import silhouette_score
+# from sklearn.datasets import make_blobs
+# from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 import torch
 import pandas as pd
 
-import pointcloudsimilarity.similarities as pcsim
+# import pointcloudsimilarity.similarities as pcsim
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                TASSimilarityTorch,
@@ -20,11 +20,11 @@ from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                PWCCASimilarity, RTDSimilarity)
 import torch.nn.functional as F
 from sklearn.datasets import load_digits
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from umap import UMAP
+# from sklearn.manifold import TSNE
+# from sklearn.decomposition import PCA
+# from umap import UMAP
 from pathlib import Path
 import toml
 
