@@ -11,7 +11,9 @@ from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                TASSimilarityTorch,
                                                ProcrustesSimilarity,
-                                               PWCCASimilarity, RTDSimilarity)
+                                               PWCCASimilarity, 
+                                            #    RTDSimilarity
+                                               )
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
@@ -59,7 +61,7 @@ def train_one_batch(X, y, model, optimizer, criterion):
 def experiment(
     n_samples,
     n_features,
-    n_classes,
+    class_dim,
     hidden_dim,
     epochs,
     cluster_std,
@@ -67,7 +69,7 @@ def experiment(
     X_, y_ = make_blobs(
         n_samples=n_samples,
         n_features=n_features,
-        centers=n_classes,
+        centers=class_dim,
         cluster_std=cluster_std,
         random_state=42,
     )
@@ -79,12 +81,12 @@ def experiment(
     model1 = MLPNetwork(
         input_dim=n_features,
         hidden_dim=hidden_dim,
-        output_dim=n_classes,
+        output_dim=len(class_dim),
     ).to(device)
     model2 = MLPNetwork(
         input_dim=n_features,
         hidden_dim=hidden_dim,
-        output_dim=n_classes,
+        output_dim=len(class_dim),
     ).to(device)
 
     # Training setup
@@ -145,7 +147,7 @@ def experiment(
     plt.xlabel("Epoch")
     plt.title("Model Similarity Over Time")
     plt.savefig(
-        script_dir / config['output_dir'] / f'training_similarity_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
+        script_dir / config['output_dir'] / f'training_similarity_{n_samples}_{n_features}_{len(class_dim)}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,
         bbox_inches='tight',
     )
@@ -159,7 +161,7 @@ def experiment(
     plt.title('Training Loss Over Time')
     plt.legend()
     plt.savefig(
-        script_dir / config['output_dir'] / f'training_loss_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
+        script_dir / config['output_dir'] / f'training_loss_{n_samples}_{n_features}_{len(class_dim)}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,
         bbox_inches='tight',
     )
@@ -167,21 +169,22 @@ def experiment(
 
 def main():
     from itertools import product
-    for n_samples, n_features, n_classes, hidden_dim, epochs, cluster_std in product(
+    for n_samples, n_features, class_dim, n_classes, hidden_dim, epochs, cluster_std in product(
         [1000],
-        [5, 10],
-        [5],
-        [2, 5, 50],
+        [5, 10, 50],
+        [[3, -3], [5, -5]],
+        [2, 3, 4],
+        [10, 20, 50],
         [40],
-        [0.1, 5, 10],
+        [0.1, 3, 5, 7],
     ):
         print(
-            f"Running experiment with n_samples={n_samples}, n_features={n_features}, n_classes={n_classes}, hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}"
+            f"Running experiment with n_samples={n_samples}, n_features={n_features}, n_classes={len(class_dim)}, hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}"
         )
         experiment(
             n_samples,
             n_features,
-            n_classes,
+            list(product(class_dim, repeat=n_features))[:n_classes],
             hidden_dim,
             epochs,
             cluster_std,
