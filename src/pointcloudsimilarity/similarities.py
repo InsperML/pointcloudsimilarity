@@ -4,7 +4,7 @@ from .procrustes import ProcrustesSimilarity
 from .gw_sim import GWSimilarity
 from .tas import TASSimilarityCPU, TASSimilarityFaiss, TASSimilarityTorch
 from .pwcca import PWCCASimilarity
-from .rtd import RTDSimilarity
+# from .rtd import RTDSimilarity
 
 __all__ = [
     "CKASimilarity",
@@ -15,7 +15,7 @@ __all__ = [
     "TASSimilarityFaiss",
     "TASSimilarityTorch",
     "PWCCASimilarity",
-    "RTDSimilarity"
+    # "RTDSimilarity"
 ]
 
 available_metrics = {
@@ -27,7 +27,7 @@ available_metrics = {
     "nngs_faiss": TASSimilarityFaiss,
     "nngs_torch": TASSimilarityTorch,
     "pwcca": PWCCASimilarity,
-    "rtd": RTDSimilarity,
+  
 }
 
 
