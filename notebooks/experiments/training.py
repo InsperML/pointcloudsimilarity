@@ -1,418 +1,267 @@
+from itertools import product
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_blobs
-
-from tqdm import tqdm
-import torch
-import pandas as pd
-
-# import pointcloudsimilarity.similarities as pcsim
-from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
-                                               GWSimilarity,
-                                               TASSimilarityTorch,
-                                               ProcrustesSimilarity,
-                                               PWCCASimilarity, RTDSimilarity)
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-from pathlib import Path
 import toml
+import torch
+from dataset_ import make_dataloader
+from model_ import BLOCK_CLASS_MAP, ResidualBlock, make_criterion, make_model_and_optimizer
+from similarity_ import SimilarityTracker
 
 script_dir = Path(__file__).parent
-config = toml.load(script_dir / "settings.toml")['figures']
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def make_equidistant_centers(n_classes, n_features, scale):
-    assert n_features >= n_classes - 1, (
-        f"Need n_features >= n_classes-1 for equidistant centers, "
-        f"got {n_features} < {n_classes - 1}"
-    )
-    # Centered identity rows are equidistant (distance sqrt(2)); SVD gives
-    # the n_classes-1 non-trivial directions as an orthonormal embedding.
-    basis = np.eye(n_classes) - 1.0 / n_classes
-    U, S, _ = np.linalg.svd(basis, full_matrices=False)
-    coords = U[:, :n_classes - 1] * S[:n_classes - 1] * scale
-    centers = np.zeros((n_classes, n_features))
-    centers[:, :n_classes - 1] = coords
-    return centers
+def get_device() -> torch.device:
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def sweep_model_similarity(X, Y):
-    ks = np.arange(1, X.shape[0] - 1, 1)
-    #ks = np.arange(1, 500, 1)
-    similarities_nngs = []
-    for k in tqdm(ks, disable=True):
-        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
-        sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
-        similarities_nngs.append(sim)
-    return ks, similarities_nngs
+class TrainingSession:
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        criterion: torch.nn.Module,
+    ) -> None:
+        self.model = model
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.losses = []
+
+    def init_epoch(self) -> None:
+        self.epoch_loss = 0.0
+        self.num_batches = 0
+
+    def train_batch(self, X: torch.Tensor, y: torch.Tensor) -> None:
+        self.model.train()
+
+        self.optimizer.zero_grad()
+
+        outputs, _ = self.model(X)
+        batch_loss = self.criterion(outputs, y)
+
+        batch_loss.backward()
+        self.optimizer.step()
+
+        self.epoch_loss += batch_loss.item()
+        self.num_batches += 1
+
+    def end_epoch(self) -> float:
+        avg_loss = self.epoch_loss / self.num_batches if self.num_batches > 0 else 0.0
+        self.losses.append(avg_loss)
+        return avg_loss
 
 
-class ResidualBlock(torch.nn.Module):
-    # Params: 2*(dim² + dim)
-    def __init__(self, dim):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(dim, dim)
-        self.dropout = torch.nn.Dropout(0.2)
-        self.fc2 = torch.nn.Linear(dim, dim)
+class EarlyStopping:
+    def __init__(self, patience: int = 10) -> None:
+        self.patience = patience
+        self.best_loss = float('inf')
+        self.no_improve_count = 0
 
-    def forward(self, x):
-        identity = x
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        out += identity
-        return F.relu(out)
-
-
-class SimpleMLP(torch.nn.Module):
-    # Same params as ResidualBlock (2*(dim² + dim)), no skip connection.
-    def __init__(self, dim):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(dim, dim)
-        self.dropout = torch.nn.Dropout(0.2)
-        self.fc2 = torch.nn.Linear(dim, dim)
-
-    def forward(self, x):
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return F.relu(out)
-
-
-class SelfAttentionBlock(torch.nn.Module):
-    # Params ≈ 2*(dim² + dim): attention over two token_dim-sized feature halves
-    # (dim²+2*dim) plus a linear layer (dim²+dim) ≈ 2*dim²+3*dim.
-    # Requires even dim.
-    def __init__(self, dim):
-        super().__init__()
-        assert dim % 2 == 0, f"SelfAttentionBlock requires even dim, got {dim}"
-        self.token_dim = dim // 2
-        self.attn = torch.nn.MultiheadAttention(
-            embed_dim=self.token_dim,
-            num_heads=1,
-            dropout=0.0,
-            batch_first=True,
-        )
-
-    def forward(self, x):
-        B, D = x.shape
-        x_tokens = x.view(B, 2,
-                          self.token_dim)  # treat two feature halves as tokens
-        attn_out, _ = self.attn(x_tokens, x_tokens, x_tokens)
-        out = attn_out.reshape(B, D)
-        return F.relu(out)
-
-
-class SelfAttentionResidualBlock(torch.nn.Module):
-    # Self-attention with residual + LayerNorm; no feedforward.
-    # Params ≈ dim² + 4*dim (roughly half of ResidualBlock). Requires even dim.
-    def __init__(self, dim):
-        super().__init__()
-        assert dim % 2 == 0, f"SelfAttentionResidualBlock requires even dim, got {dim}"
-        self.token_dim = dim // 2
-        self.attn = torch.nn.MultiheadAttention(
-            embed_dim=self.token_dim,
-            num_heads=1,
-            dropout=0.2,
-            batch_first=True,
-        )
-        self.norm = torch.nn.LayerNorm(dim)
-
-    def forward(self, x):
-        B, D = x.shape
-        x_tokens = x.view(B, 2, self.token_dim)
-        attn_out, _ = self.attn(x_tokens, x_tokens, x_tokens)
-        return F.relu(self.norm(x + attn_out.reshape(B, D)))
-
-
-class TransformerBlock(torch.nn.Module):
-    # Standard transformer encoder block: attention + feedforward, both with residual + LayerNorm.
-    # Params ≈ 2*dim² + 7*dim (attention: dim²+2*dim, FFN with dim//2 width: dim²+1.5*dim, norms: 4*dim).
-    # Requires even dim.
-    def __init__(self, dim):
-        super().__init__()
-        assert dim % 2 == 0, f"TransformerBlock requires even dim, got {dim}"
-        self.token_dim = dim // 2
-        self.attn = torch.nn.MultiheadAttention(
-            embed_dim=self.token_dim,
-            num_heads=1,
-            dropout=0.2,
-            batch_first=True,
-        )
-        self.ff1 = torch.nn.Linear(dim, dim // 2)
-        self.ff2 = torch.nn.Linear(dim // 2, dim)
-        self.norm1 = torch.nn.LayerNorm(dim)
-        self.norm2 = torch.nn.LayerNorm(dim)
-        self.dropout = torch.nn.Dropout(0.2)
-
-    def forward(self, x):
-        B, D = x.shape
-        x_tokens = x.view(B, 2, self.token_dim)
-        attn_out, _ = self.attn(x_tokens, x_tokens, x_tokens)
-        x = self.norm1(x + attn_out.reshape(B, D))
-        x = self.norm2(x + self.ff2(self.dropout(F.relu(self.ff1(x)))))
-        return x
-
-
-BLOCK_CLASS_MAP = {
-    'ResidualBlock': ResidualBlock,
-    'SimpleMLP': SimpleMLP,
-    'SelfAttentionBlock': SelfAttentionBlock,
-    'SelfAttentionResidualBlock': SelfAttentionResidualBlock,
-    'TransformerBlock': TransformerBlock,
-}
-
-
-class MLPNetwork(torch.nn.Module):
-
-    def __init__(self,
-                 input_dim,
-                 hidden_dim,
-                 output_dim,
-                 block_class=ResidualBlock,
-                 n_blocks=1):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(input_dim, hidden_dim)
-        self.blocks = torch.nn.Sequential(
-            *[block_class(hidden_dim) for _ in range(n_blocks)]
-        )
-        self.fc2 = torch.nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x_ = self.blocks(x)
-        x = self.fc2(x_)
-        return x, x_
-
-
-def train_one_batch(X, y, model, optimizer, criterion):
-    model.train()
-    optimizer.zero_grad()
-    outputs, _ = model(X)
-    loss = criterion(outputs, y)
-    loss.backward()
-    optimizer.step()
-    return loss.item()
-
-
-def make_blobs_dataset(n_samples, n_features, n_classes, cluster_std):
-    X, y = make_blobs(
-        n_samples=n_samples,
-        n_features=n_features,
-        centers=n_classes,
-        cluster_std=cluster_std,
-        random_state=42,
-    )
-    return X, y
-
-def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
-    # Make a set of n_classes points in n_features dimensions.
-    corners = np.random.randn(n_classes+n_features, n_features)
-
-    # Make a Delauney triangulation of the corners to get simplices.
-    from scipy.spatial import Delaunay
-    tri = Delaunay(corners)
-
-    # Sample points uniformly from the simplices.
-    points = []
-    classes = []
-    for idx, simplex in enumerate(tri.simplices):
-        simplex_corners = corners[simplex]
-        for _ in range(n_samples // len(tri.simplices)):
-            weights = np.random.dirichlet(np.ones(len(simplex)))
-            point = np.dot(weights, simplex_corners)
-            points.append(point)
-            classes.append(simplex)
-
-    return np.array(points), np.array(classes)
-
-
-make_dataset = make_geometric_dataset
-
-
-def experiment(
-    n_samples,
-    n_features,
-    n_classes,
-    hidden_dim,
-    epochs,
-    cluster_std,
-    block_class=ResidualBlock,
-    n_blocks=1,
-    patience=200,
-    center_scale=10.0,
-):
-    centers = make_equidistant_centers(n_classes, n_features, scale=center_scale)
-    X_, y_ = make_blobs(
-        n_samples=n_samples,
-        n_features=n_features,
-        centers=centers,
-        cluster_std=cluster_std,
-        random_state=42,
-    )
-    X_tensor = torch.Tensor(X_).to(device)
-    y_tensor = torch.LongTensor(y_).to(device)
-    
-    dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size=X_tensor.shape[0], shuffle=True)
-
-    model1 = MLPNetwork(
-        input_dim=n_features,
-        hidden_dim=hidden_dim,
-        output_dim=n_classes,
-    ).to(device)
-    model2 = MLPNetwork(
-        input_dim=n_features,
-        hidden_dim=hidden_dim,
-        output_dim=n_classes,
-    ).to(device)
-
-    # Training setup
-    criterion = torch.nn.CrossEntropyLoss()
-    optimizer1 = torch.optim.Adam(model1.parameters(), lr=1e-3)
-    optimizer2 = torch.optim.Adam(model2.parameters(), lr=1e-3)
-
-    # Training loop
-
-    similarities = []
-    losses1 = []
-    losses2 = []
-    best_loss = float('inf')
-    no_improve_count = 0
-    for epoch in range(epochs):
-        loss1_local = 0.0
-        loss2_local = 0.0
-        for X, y in dataloader:
-            loss1 = train_one_batch(X.to(device), y.to(device), model1,
-                                    optimizer1, criterion)
-            loss2 = train_one_batch(X.to(device), y.to(device), model2,
-                                    optimizer2, criterion)
-            loss1_local += loss1
-            loss2_local += loss2
-
-        avg_loss1 = loss1_local / len(dataloader)
-        avg_loss2 = loss2_local / len(dataloader)
-        losses1.append(avg_loss1)
-        losses2.append(avg_loss2)
-
-        combined_loss = avg_loss1 + avg_loss2
-        if combined_loss < best_loss:
-            best_loss = combined_loss
-            no_improve_count = 0
+    def step(self, current_loss: float) -> bool:
+        if current_loss < self.best_loss:
+            self.best_loss = current_loss
+            self.no_improve_count = 0
+            return False  # Not stopping
         else:
-            no_improve_count += 1
+            self.no_improve_count += 1
+            return (
+                self.no_improve_count >= self.patience
+            )  # Stop if no improvement for 'patience' epochs
 
-        with torch.no_grad():
-            _, z1 = model1(X_tensor)
-            _, z2 = model2(X_tensor)
-            ks, similarities_nngs = sweep_model_similarity(
-                z1.cpu().numpy(),
-                z2.cpu().numpy())
-            similarities.append(similarities_nngs)
 
-        if (epoch + 1) % 10 == 0:
-            print(
-                f"Epoch {epoch + 1}/{epochs}, Loss1: {loss1:.4f}, Loss2: {loss2:.4f}"
-            )
+def plot_results(
+    similarities: np.ndarray,
+    losses_1: np.ndarray,
+    losses_2: np.ndarray,
+    fname_base: str,
+    title_suffix: str,
+) -> None:
+    config = toml.load(script_dir / 'settings.toml')['figures']
+    out_dir = script_dir / config['output_dir']
 
-        if no_improve_count >= patience:
-            print(
-                f"Early stopping at epoch {epoch + 1}: no improvement for 10 epochs."
-            )
-            break
+    def make_figure_filename(metric: str) -> Path:
+        return out_dir / f'training_{metric}_{fname_base}.pdf'
 
-    with torch.no_grad():
-        _, z1 = model1(X_tensor)
-        _, z2 = model2(X_tensor)
-        ks, similarities_nngs = sweep_model_similarity(z1.cpu().numpy(),
-                                                       z2.cpu().numpy())
-        similarities.append(similarities_nngs)
+    figsize = (config['width'], config['height'])
 
-    print(z1[:2, :])
-    print(F.softmax(z1[:2, :], dim=1))
-    print(z2[:2, :])
-    print(F.softmax(z2[:2, :], dim=1))
+    plt.figure(figsize=figsize)
+    im = plt.imshow(similarities, aspect='auto', cmap='viridis', vmin=0, vmax=1)
+    cs = plt.contour(
+        similarities,
+        levels=np.arange(0, 1.1, 0.1),
+        colors='white',
+        linewidths=0.5,
+        alpha=0.6,
+    )
+    plt.clabel(cs, fmt='%.1f', fontsize=7)
+    plt.colorbar(im, label='Similarity')
+    plt.ylabel('$n$')
+    plt.xlabel('Epoch')
+    plt.title(f'Model Similarity Over Time ({title_suffix})')
+    plt.savefig(make_figure_filename('similarity'), dpi=300, bbox_inches='tight')
 
-    block_name = block_class.__name__
-    fname_base = f'{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}_{center_scale}_{block_name}_{n_blocks}blocks'
+    plt.figure(figsize=figsize)
+    plt.plot(losses_1, label='Model 1 Loss')
+    plt.plot(losses_2, label='Model 2 Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.ylim(0, 1.0)
+    plt.title(f'Training Loss Over Time ({title_suffix})')
+    plt.legend()
+    plt.savefig(make_figure_filename('loss'), dpi=300, bbox_inches='tight')
 
+
+def save_models(
+    model1: torch.nn.Module,
+    model2: torch.nn.Module,
+    fname_base: str,
+) -> None:
+    config = toml.load(script_dir / 'settings.toml')['figures']
     out_dir = script_dir / config['output_dir']
     torch.save(model1.state_dict(), out_dir / f'model1_{fname_base}.pt')
     torch.save(model2.state_dict(), out_dir / f'model2_{fname_base}.pt')
 
-    plt.figure(figsize=(config['width'], config['height']))
-    similarities = np.array(similarities).T
-    im = plt.imshow(similarities,
-                    aspect='auto',
-                    cmap='viridis',
-                    vmin=0,
-                    vmax=1)
-    cs = plt.contour(similarities,
-                     levels=np.arange(0, 1.1, 0.1),
-                     colors='white',
-                     linewidths=0.5,
-                     alpha=0.6)
-    plt.clabel(cs, fmt='%.1f', fontsize=7)
-    plt.colorbar(im, label='Similarity')
 
-    plt.ylabel("$n$")
-    plt.xlabel("Epoch")
-    plt.title(f"Model Similarity Over Time ({block_name}, {n_blocks} blocks)")
-    plt.savefig(
-        out_dir /
-        f'training_similarity_{fname_base}.pdf',
-        dpi=300,
-        bbox_inches='tight',
+def experiment(
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
+    hidden_dim: int,
+    epochs: int,
+    cluster_std: float,
+    block_class: type[torch.nn.Module] = ResidualBlock,
+    n_blocks: int = 1,
+    patience: int = 200,
+    center_scale: float = 10.0,
+):
+    print(
+        ', '.join(
+            [
+                f'Running experiment: block={block_class.__name__}',
+                f'n_blocks={n_blocks}',
+                f'n_samples={n_samples}',
+                f'n_features={n_features}',
+                f'n_classes={n_classes}',
+                f'hidden_dim={hidden_dim}',
+                f'epochs={epochs}',
+                f'cluster_std={cluster_std}',
+                f'center_scale={center_scale}',
+            ]
+        )
     )
 
-    plt.figure(figsize=(config['width'], config['height']))
-    plt.plot(losses1, label='Model 1 Loss')
-    plt.plot(losses2, label='Model 2 Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.ylim(0, 1.0)
+    device = get_device()
+    X_tensor, y_tensor, dataloader = make_dataloader(
+        n_samples,
+        n_features,
+        n_classes,
+        cluster_std,
+        center_scale,
+        device=device,
+    )
 
-    plt.title(f'Training Loss Over Time ({block_name}, {n_blocks} blocks)')
-    plt.legend()
-    plt.savefig(
-        out_dir / f'training_loss_{fname_base}.pdf',
-        dpi=300,
-        bbox_inches='tight',
+    model1, optimizer1 = make_model_and_optimizer(
+        n_features,
+        hidden_dim,
+        n_classes,
+        device,
+        lr=1e-3,
+        block_class=block_class,
+        n_blocks=n_blocks,
+    )
+
+    model2, optimizer2 = make_model_and_optimizer(
+        n_features,
+        hidden_dim,
+        n_classes,
+        device,
+        lr=1e-3,
+        block_class=block_class,
+        n_blocks=n_blocks,
+    )
+
+    # Training setup
+    criterion = make_criterion()
+
+    # Training loop
+    trainer_1 = TrainingSession(model1, optimizer1, criterion)
+    trainer_2 = TrainingSession(model2, optimizer2, criterion)
+    early_stopping = EarlyStopping(patience=patience)
+    similarity_tracker = SimilarityTracker(model1, model2, X_tensor)
+
+    for epoch in range(1, epochs + 1):
+        trainer_1.init_epoch()
+        trainer_2.init_epoch()
+
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            trainer_1.train_batch(X, y)
+            trainer_2.train_batch(X, y)
+
+        avg_loss1 = trainer_1.end_epoch()
+        avg_loss2 = trainer_2.end_epoch()
+        if epoch % 10 == 0:
+            print(
+                f'Epoch {epoch}/{epochs}, Loss1: {avg_loss1:.4f}, Loss2: {avg_loss2:.4f}'
+            )
+
+        similarity_tracker.add_similarity()
+
+        combined_loss = avg_loss1 + avg_loss2
+        if early_stopping.step(combined_loss):
+            print(
+                f'Early stopping at epoch {epoch}: '
+                f'no improvement for {early_stopping.patience} epochs.'
+            )
+            break
+
+    similarity_tracker.add_similarity()
+
+    block_name = block_class.__name__
+    fname_base = (
+        f'{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}'
+        f'_{center_scale}_{block_name}_{n_blocks}blocks'
+    )
+    save_models(model1, model2, fname_base)
+
+    similarities = np.array(similarity_tracker.similarities).T
+    losses_1 = np.array(trainer_1.losses)
+    losses_2 = np.array(trainer_2.losses)
+    plot_results(
+        similarities,
+        losses_1,
+        losses_2,
+        fname_base,
+        title_suffix=f'{block_name}, {n_blocks} blocks',
     )
 
 
 def main():
-    from itertools import product
-    sweep = toml.load(script_dir / "experiments.toml")['sweep']
+    sweep = toml.load(script_dir / 'experiments.toml')['sweep']
     block_classes = [BLOCK_CLASS_MAP[name] for name in sweep['block_classes']]
 
     for (
-            block_class,
-            n_blocks,
-            n_samples,
-            n_features,
-            n_classes,
-            hidden_dim,
-            epochs,
-            cluster_std,
-            center_scale,
+        block_class,
+        n_blocks,
+        n_samples,
+        n_features,
+        n_classes,
+        hidden_dim,
+        epochs,
+        cluster_std,
+        center_scale,
     ) in product(
-            block_classes,
-            sweep['n_blocks'],
-            sweep['n_samples'],
-            sweep['n_features'],
-            sweep['n_classes'],
-            sweep['hidden_dim'],
-            sweep['epochs'],
-            sweep['cluster_std'],
-            sweep['center_scale'],
+        block_classes,
+        sweep['n_blocks'],
+        sweep['n_samples'],
+        sweep['n_features'],
+        sweep['n_classes'],
+        sweep['hidden_dim'],
+        sweep['epochs'],
+        sweep['cluster_std'],
+        sweep['center_scale'],
     ):
-        print(
-            f"Running experiment: block={block_class.__name__}, n_blocks={n_blocks}, "
-            f"n_samples={n_samples}, n_features={n_features}, n_classes={n_classes}, "
-            f"hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}, "
-            f"center_scale={center_scale}")
         experiment(
             n_samples,
             n_features,
@@ -426,5 +275,5 @@ def main():
         )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
