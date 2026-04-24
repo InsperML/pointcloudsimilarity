@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from pdf_utils import pdf_first_page_to_image_array
 
 
 FIGURE_PATTERN = re.compile(
@@ -60,22 +58,7 @@ def parse_figure_arguments(figures_dir: Path, kind: str) -> dict[FigureMetadata,
 
 
 def _pdf_to_image_array(pdf_path: Path, dpi: int = 180):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_prefix = Path(tmpdir) / pdf_path.stem
-        subprocess.run(
-            [
-                "pdftoppm",
-                "-singlefile",
-                "-png",
-                "-r",
-                str(dpi),
-                str(pdf_path),
-                str(output_prefix),
-            ],
-            check=True,
-            capture_output=True,
-        )
-        return mpimg.imread(f"{output_prefix}.png")
+    return pdf_first_page_to_image_array(pdf_path, dpi=dpi)
 
 
 def _sorted_unique(values: set[Any]) -> list[Any]:
@@ -130,7 +113,7 @@ def build_custom_matrix(
             axis.set_frame_on(True)
             for spine in axis.spines.values():
                 spine.set_visible(True)
-                spine.set_linewidth(0.8)
+                spine.set_linewidth(0.4)
 
             if match is None:
                 axis.set_facecolor("white")
@@ -147,11 +130,12 @@ def build_custom_matrix(
     fig.suptitle(
         f"{kind.replace('_', ' ').title()} matrix",
         fontsize=16,
+        x=0.54,
         y=0.995,
     )
     fig.text(
-        0.5,
-        0.91,
+        0.54,
+        0.92,
         col_key,
         ha="center",
         va="top",
@@ -159,7 +143,7 @@ def build_custom_matrix(
     )
     fig.text(
         0.03,
-        0.5,
+        0.45,
         row_key,
         rotation=90,
         ha="left",
@@ -212,25 +196,25 @@ def main() -> None:
     parser.add_argument(
         "--n-samples",
         type=int,
-        default=1000,
+        default=None,
         help="Optional filter for n_samples.",
     )
     parser.add_argument(
         "--n-classes",
         type=int,
-        default=2,
+        default=None,
         help="Optional filter for n_classes.",
     )
     parser.add_argument(
         "--hidden-dim",
         type=int,
-        default=10,
+        default=None,
         help="Optional filter for hidden_dim.",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=40,
+        default=None,
         help="Optional filter for epochs.",
     )
     parser.add_argument(
@@ -242,17 +226,21 @@ def main() -> None:
     parser.add_argument(
         "--dpi",
         type=int,
-        default=180,
+        default=300,
         help="Rasterization DPI used when converting PDFs into images.",
     )
     args = parser.parse_args()
 
-    fixed_filters = {
-        "n_samples": args.n_samples,
-        "n_classes": args.n_classes,
-        "hidden_dim": args.hidden_dim,
-        "epochs": args.epochs,
-    }
+    fixed_filters = {}
+    if args.n_samples:
+        fixed_filters["n_samples"] = args.n_samples
+    if args.n_classes:
+        fixed_filters["n_classes"] = args.n_classes
+    if args.hidden_dim:
+        fixed_filters["hidden_dim"] = args.hidden_dim
+    if args.epochs:
+        fixed_filters["epochs"] = args.epochs
+
     fixed_filters.pop(args.row_key, None)
     fixed_filters.pop(args.col_key, None)
 

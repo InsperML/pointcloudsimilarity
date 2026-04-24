@@ -61,13 +61,7 @@ def train_one_batch(X, y, model, optimizer, criterion):
 def experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std):
     n_classes = len(class_dim)
     return (
-        f"n_samples: {n_samples} (number of generated points)\n"
-        f"n_features: {n_features} (input feature dimension)\n"
-        f"n_classes: {n_classes} (number of blob centers/classes)\n"
-        f"class_dim: {class_dim} (blob centers used by make_blobs)\n"
-        f"hidden_dim: {hidden_dim} (hidden layer width)\n"
-        f"epochs: {epochs} (training epochs)\n"
-        f"cluster_std: {cluster_std} (cluster spread / standard deviation)"
+        f"n_samples: {n_samples}; n_features: {n_features}; n_classes: {n_classes}; class_dim: {len(class_dim)}; hidden_dim: {hidden_dim}; epochs: {epochs}; cluster_std: {cluster_std};"
     )
 
 
@@ -153,20 +147,21 @@ def experiment(
 
     plt.figure(figsize=(config['width'], config['height']))
     similarities = np.array(similarities).T
-    plt.imshow(similarities, aspect='auto', cmap='viridis')
+    plt.imshow(similarities, aspect='auto', cmap='viridis', vmin=0, vmax=1)
     plt.colorbar(label='Similarity')
 
     plt.ylabel("$\\alpha$")
     plt.xlabel("Epoch")
     plt.title("Model Similarity Over Time")
     plt.figtext(
-        0.01,
+        0.5,
         0.01,
         experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std),
-        ha='left',
+        ha='center',
         va='bottom',
         fontsize=8,
         family='monospace',
+        wrap=True
     )
     plt.tight_layout(rect=(0, 0.12, 1, 1))
     plt.savefig(
@@ -184,13 +179,14 @@ def experiment(
     plt.title('Training Loss Over Time')
     plt.legend()
     plt.figtext(
-        0.01,
+        0.5,
         0.01,
         experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std),
-        ha='left',
+        ha='center',
         va='bottom',
         fontsize=8,
         family='monospace',
+        wrap=True
     )
     plt.tight_layout(rect=(0, 0.12, 1, 1))
     plt.savefig(
@@ -204,12 +200,12 @@ def main():
     from itertools import product
     for n_samples, n_features, class_dim, n_classes, hidden_dim, epochs, cluster_std in product(
         [1000],
-        [5, 10, 50],
-        [[3, -3], [5, -5]],
-        [2, 3, 4],
-        [10, 20, 50],
-        [40],
-        [0.1, 3, 5, 7],
+        [10, 20],
+        [[5, -5]],
+        [2],
+        [20],
+        [10],
+        [0.1, 0.5, 1, 5],
     ):
         print(
             f"Running experiment with n_samples={n_samples}, n_features={n_features}, n_classes={len(class_dim)}, hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}"
