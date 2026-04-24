@@ -85,7 +85,7 @@ def make_blobs_dataset(n_samples, n_features, n_classes, cluster_std):
 
 def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
     # Make a set of n_classes points in n_features dimensions.
-    corners = np.random.randn(n_classes, n_features)
+    corners = np.random.randn(n_classes+n_features, n_features)
 
     # Make a Delauney triangulation of the corners to get simplices.
     from scipy.spatial import Delaunay
@@ -93,17 +93,19 @@ def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
 
     # Sample points uniformly from the simplices.
     points = []
-    for simplex in tri.simplices:
+    classes = []
+    for idx, simplex in enumerate(tri.simplices):
         simplex_corners = corners[simplex]
         for _ in range(n_samples // len(tri.simplices)):
             weights = np.random.dirichlet(np.ones(len(simplex)))
             point = np.dot(weights, simplex_corners)
             points.append(point)
+            classes.append(simplex)
 
-    return np.array(points), np.repeat(np.arange(n_classes), n_samples // len(tri.simplices))
+    return np.array(points), np.array(classes)
 
 
-make_dataset = make_blobs_dataset
+make_dataset = make_geometric_dataset
 
 
 def experiment(
@@ -118,22 +120,24 @@ def experiment(
 
     X_tensor = torch.Tensor(X_).to(device)
     y_tensor = torch.LongTensor(y_).to(device)
+    
     dataset = TensorDataset(X_tensor, y_tensor)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model1 = MLPNetwork(
         input_dim=n_features,
         hidden_dim=hidden_dim,
-        output_dim=n_classes,
+        output_dim=y_tensor.shape[1] if len(y_tensor.shape) > 1 else n_classes,
     ).to(device)
     model2 = MLPNetwork(
         input_dim=n_features,
         hidden_dim=hidden_dim,
-        output_dim=n_classes,
+        output_dim=y_tensor.shape[1] if len(y_tensor.shape) > 1 else n_classes + n_features,
     ).to(device)
 
     # Training setup
-    criterion = torch.nn.CrossEntropyLoss()
+    #criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.BCELoss()
     optimizer1 = torch.optim.Adam(model1.parameters(), lr=1e-3)
     optimizer2 = torch.optim.Adam(model2.parameters(), lr=1e-3)
 
