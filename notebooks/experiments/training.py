@@ -58,6 +58,19 @@ def train_one_batch(X, y, model, optimizer, criterion):
     return loss.item()
 
 
+def experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std):
+    n_classes = len(class_dim)
+    return (
+        f"n_samples: {n_samples} (number of generated points)\n"
+        f"n_features: {n_features} (input feature dimension)\n"
+        f"n_classes: {n_classes} (number of blob centers/classes)\n"
+        f"class_dim: {class_dim} (blob centers used by make_blobs)\n"
+        f"hidden_dim: {hidden_dim} (hidden layer width)\n"
+        f"epochs: {epochs} (training epochs)\n"
+        f"cluster_std: {cluster_std} (cluster spread / standard deviation)"
+    )
+
+
 def experiment(
     n_samples,
     n_features,
@@ -146,6 +159,16 @@ def experiment(
     plt.ylabel("$\\alpha$")
     plt.xlabel("Epoch")
     plt.title("Model Similarity Over Time")
+    plt.figtext(
+        0.01,
+        0.01,
+        experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std),
+        ha='left',
+        va='bottom',
+        fontsize=8,
+        family='monospace',
+    )
+    plt.tight_layout(rect=(0, 0.12, 1, 1))
     plt.savefig(
         script_dir / config['output_dir'] / f'training_similarity_{n_samples}_{n_features}_{len(class_dim)}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,
@@ -160,6 +183,16 @@ def experiment(
 
     plt.title('Training Loss Over Time')
     plt.legend()
+    plt.figtext(
+        0.01,
+        0.01,
+        experiment_description(n_samples, n_features, class_dim, hidden_dim, epochs, cluster_std),
+        ha='left',
+        va='bottom',
+        fontsize=8,
+        family='monospace',
+    )
+    plt.tight_layout(rect=(0, 0.12, 1, 1))
     plt.savefig(
         script_dir / config['output_dir'] / f'training_loss_{n_samples}_{n_features}_{len(class_dim)}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
         dpi=300,

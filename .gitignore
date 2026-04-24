@@ -9,5 +9,6 @@ wheels/
 # Virtual environments
 .venv
 *.png
-*.pth 
+*.pth
+*.pdf 
 notebooks/gensim_view.ipynb
