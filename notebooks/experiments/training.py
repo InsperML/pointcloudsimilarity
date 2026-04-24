@@ -1,258 +1,248 @@
+from itertools import product
+from pathlib import Path
+from typing import Generator
+
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_blobs
-
-from tqdm import tqdm
-import torch
-import pandas as pd
-
-# import pointcloudsimilarity.similarities as pcsim
-from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
-                                               GWSimilarity,
-                                               TASSimilarityTorch,
-                                               ProcrustesSimilarity,
-                                               PWCCASimilarity, RTDSimilarity)
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-from pathlib import Path
 import toml
-
-script_dir = Path(__file__).parent
-config = toml.load(script_dir / "settings.toml")['figures']
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def sweep_model_similarity(X, Y):
-    ks = np.arange(1, X.shape[0] - 1, 1)
-    #ks = np.arange(1, 500, 1)
-    similarities_nngs = []
-    for k in tqdm(ks, disable=True):
-        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
-        sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
-        similarities_nngs.append(sim)
-    return ks, similarities_nngs
+import torch
+from dataset_ import make_dataloader
+from model_ import make_criterion, make_model_and_optimizer
+from sentence_transformers.util import get_device_name
+from similarity_ import SimilarityTracker
 
 
-class ResidualBlock(torch.nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(dim, dim)
-        self.dropout = torch.nn.Dropout(0.2)
-        self.fc2 = torch.nn.Linear(dim, dim)
-
-    def forward(self, x):
-        identity = x
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        out += identity
-        return F.relu(out)
-
-class MLPNetwork(torch.nn.Module):
-
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(input_dim, hidden_dim)
-        self.resblock = ResidualBlock(hidden_dim)
-        self.fc2 = torch.nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x_ = self.resblock(x)
-        x = self.fc2(x_)
-        return x, x_
+def get_device() -> torch.device:
+    return torch.device(get_device_name())
 
 
-def train_one_batch(X, y, model, optimizer, criterion):
-    model.train()
-    optimizer.zero_grad()
-    outputs, _ = model(X)
-    loss = criterion(outputs, y)
-    loss.backward()
-    optimizer.step()
-    return loss.item()
+class TrainingSession:
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        criterion: torch.nn.Module,
+    ) -> None:
+        self.model = model
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.losses = []
+
+    def init_epoch(self) -> None:
+        self.epoch_loss = 0.0
+        self.num_batches = 0
+
+    def train_batch(self, X: torch.Tensor, y: torch.Tensor) -> None:
+        self.model.train()
+
+        self.optimizer.zero_grad()
+
+        outputs, _ = self.model(X)
+        batch_loss = self.criterion(outputs, y)
+
+        batch_loss.backward()
+        self.optimizer.step()
+
+        self.epoch_loss += batch_loss.item()
+        self.num_batches += 1
+
+    def end_epoch(self) -> float:
+        avg_loss = self.epoch_loss / self.num_batches if self.num_batches > 0 else 0.0
+        self.losses.append(avg_loss)
+        return avg_loss
 
 
-def make_blobs_dataset(n_samples, n_features, n_classes, cluster_std):
-    X, y = make_blobs(
-        n_samples=n_samples,
-        n_features=n_features,
-        centers=n_classes,
-        cluster_std=cluster_std,
-        random_state=42,
+class EarlyStopping:
+    def __init__(self, patience: int = 10) -> None:
+        self.patience = patience
+        self.best_loss = float('inf')
+        self.no_improve_count = 0
+
+    def step(self, current_loss: float) -> bool:
+        if current_loss < self.best_loss:
+            self.best_loss = current_loss
+            self.no_improve_count = 0
+            return False  # Not stopping
+        else:
+            self.no_improve_count += 1
+            return (
+                self.no_improve_count >= self.patience
+            )  # Stop if no improvement for 'patience' epochs
+
+
+def plot_results(
+    similarities: np.ndarray,
+    losses_1: np.ndarray,
+    losses_2: np.ndarray,
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
+    hidden_dim: int,
+    epochs: int,
+    cluster_std: float,
+) -> None:
+    script_dir = Path(__file__).parent
+    config = toml.load(script_dir / 'settings.toml')['figures']
+
+    def make_figure_filename(metric: str) -> Path:
+        return (
+            script_dir
+            / config['output_dir']
+            / f'training_{metric}_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf'
+        )
+
+    figsize = (config['width'], config['height'])
+
+    plt.figure(figsize=figsize)
+    im = plt.imshow(similarities, aspect='auto', cmap='viridis', vmin=0, vmax=1)
+    cs = plt.contour(
+        similarities,
+        levels=np.arange(0, 1.1, 0.1),
+        colors='white',
+        linewidths=0.5,
+        alpha=0.6,
     )
-    return X, y
+    plt.clabel(cs, fmt='%.1f', fontsize=7)
+    plt.colorbar(im, label='Similarity')
+    plt.ylabel('$n$')
+    plt.xlabel('Epoch')
+    plt.title('Model Similarity Over Time')
+    plt.savefig(make_figure_filename('similarity'), dpi=300, bbox_inches='tight')
 
-def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
-    # Make a set of n_classes points in n_features dimensions.
-    corners = np.random.randn(n_classes+n_features, n_features)
-
-    # Make a Delauney triangulation of the corners to get simplices.
-    from scipy.spatial import Delaunay
-    tri = Delaunay(corners)
-
-    # Sample points uniformly from the simplices.
-    points = []
-    classes = []
-    for idx, simplex in enumerate(tri.simplices):
-        simplex_corners = corners[simplex]
-        for _ in range(n_samples // len(tri.simplices)):
-            weights = np.random.dirichlet(np.ones(len(simplex)))
-            point = np.dot(weights, simplex_corners)
-            points.append(point)
-            classes.append(simplex)
-
-    return np.array(points), np.array(classes)
-
-
-make_dataset = make_geometric_dataset
+    plt.figure(figsize=figsize)
+    plt.plot(losses_1, label='Model 1 Loss')
+    plt.plot(losses_2, label='Model 2 Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training Loss Over Time')
+    plt.legend()
+    plt.savefig(make_figure_filename('loss'), dpi=300, bbox_inches='tight')
 
 
 def experiment(
-    n_samples,
-    n_features,
-    n_classes,
-    hidden_dim,
-    epochs,
-    cluster_std,
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
+    hidden_dim: int,
+    epochs: int,
+    cluster_std: float,
 ):
-    X_, y_ = make_dataset(n_samples, n_features, n_classes, cluster_std)
-
-    X_tensor = torch.Tensor(X_).to(device)
-    y_tensor = torch.LongTensor(y_).to(device)
-    
-    dataset = TensorDataset(X_tensor, y_tensor)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-    model1 = MLPNetwork(
-        input_dim=n_features,
-        hidden_dim=hidden_dim,
-        output_dim=y_tensor.shape[1] if len(y_tensor.shape) > 1 else n_classes,
-    ).to(device)
-    model2 = MLPNetwork(
-        input_dim=n_features,
-        hidden_dim=hidden_dim,
-        output_dim=y_tensor.shape[1] if len(y_tensor.shape) > 1 else n_classes + n_features,
-    ).to(device)
-
-    # Training setup
-    #criterion = torch.nn.CrossEntropyLoss()
-    criterion = torch.nn.BCELoss()
-    optimizer1 = torch.optim.Adam(model1.parameters(), lr=1e-3)
-    optimizer2 = torch.optim.Adam(model2.parameters(), lr=1e-3)
-
-    # Training loop
-
-    similarities = []
-    losses1 = []
-    losses2 = []
-    best_loss = float('inf')
-    no_improve_count = 0
-    for epoch in range(epochs):
-        loss1_local = 0.0
-        loss2_local = 0.0
-        for X, y in dataloader:
-            loss1 = train_one_batch(X.to(device), y.to(device), model1,
-                                    optimizer1, criterion)
-            loss2 = train_one_batch(X.to(device), y.to(device), model2,
-                                    optimizer2, criterion)
-            loss1_local += loss1
-            loss2_local += loss2
-
-        avg_loss1 = loss1_local / len(dataloader)
-        avg_loss2 = loss2_local / len(dataloader)
-        losses1.append(avg_loss1)
-        losses2.append(avg_loss2)
-
-        combined_loss = avg_loss1 + avg_loss2
-        if combined_loss < best_loss:
-            best_loss = combined_loss
-            no_improve_count = 0
-        else:
-            no_improve_count += 1
-
-        with torch.no_grad():
-            _, z1 = model1(X_tensor)
-            _, z2 = model2(X_tensor)
-            ks, similarities_nngs = sweep_model_similarity(
-                z1.cpu().numpy(),
-                z2.cpu().numpy())
-            similarities.append(similarities_nngs)
-
-        if (epoch + 1) % 10 == 0:
-            print(
-                f"Epoch {epoch + 1}/{epochs}, Loss1: {loss1:.4f}, Loss2: {loss2:.4f}"
-            )
-
-        if no_improve_count >= 10:
-            print(f"Early stopping at epoch {epoch + 1}: no improvement for 10 epochs.")
-            break
-
-    with torch.no_grad():
-        _, z1 = model1(X_tensor)
-        _, z2 = model2(X_tensor)
-        ks, similarities_nngs = sweep_model_similarity(z1.cpu().numpy(),
-                                                       z2.cpu().numpy())
-        similarities.append(similarities_nngs)
-
-    print(z1[:2, :])
-    print(F.softmax(z1[:2, :], dim=1))
-    print(z2[:2, :])
-    print(F.softmax(z2[:2, :], dim=1))
-
-    plt.figure(figsize=(config['width'], config['height']))
-    similarities = np.array(similarities).T
-    im = plt.imshow(similarities, aspect='auto', cmap='viridis', vmin=0, vmax=1)
-    cs = plt.contour(similarities, levels=np.arange(0, 1.1, 0.1), colors='white', linewidths=0.5, alpha=0.6)
-    plt.clabel(cs, fmt='%.1f', fontsize=7)
-    plt.colorbar(im, label='Similarity')
-
-    plt.ylabel("$n$")
-    plt.xlabel("Epoch")
-    plt.title("Model Similarity Over Time")
-    plt.savefig(
-        script_dir / config['output_dir'] / f'training_similarity_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
-        dpi=300,
-        bbox_inches='tight',
+    print(
+        ', '.join(
+            [
+                f'Running experiment with n_samples={n_samples}',
+                f'n_features={n_features}',
+                f'n_classes={n_classes}',
+                f'hidden_dim={hidden_dim}',
+                f'epochs={epochs}',
+                f'cluster_std={cluster_std}',
+            ]
+        )
     )
 
-    plt.figure(figsize=(config['width'], config['height']))
-    plt.plot(losses1, label='Model 1 Loss')
-    plt.plot(losses2, label='Model 2 Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    device = get_device()
+    X_tensor, y_tensor, dataloader = make_dataloader(
+        n_samples,
+        n_features,
+        n_classes,
+        cluster_std,
+        batch_size=32,
+        device=device,
+    )
 
-    plt.title('Training Loss Over Time')
-    plt.legend()
-    plt.savefig(
-        script_dir / config['output_dir'] / f'training_loss_{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}.pdf',
-        dpi=300,
-        bbox_inches='tight',
+    output_dim = y_tensor.shape[1] if len(y_tensor.shape) > 1 else n_classes
+
+    model1, optimizer1 = make_model_and_optimizer(
+        n_features,
+        hidden_dim,
+        output_dim,
+        device,
+        lr=1e-3,
+    )
+
+    model2, optimizer2 = make_model_and_optimizer(
+        n_features,
+        hidden_dim,
+        output_dim,
+        device,
+        lr=1e-3,
+    )
+
+    # Training setup
+    criterion = make_criterion()
+
+    # Training loop
+    trainer_1 = TrainingSession(model1, optimizer1, criterion)
+    trainer_2 = TrainingSession(model2, optimizer2, criterion)
+    early_stopping = EarlyStopping(patience=10)
+    similarity_tracker = SimilarityTracker(model1, model2, X_tensor)
+
+    for epoch in range(1, epochs + 1):
+        trainer_1.init_epoch()
+        trainer_2.init_epoch()
+
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            trainer_1.train_batch(X, y)
+            trainer_2.train_batch(X, y)
+
+        avg_loss1 = trainer_1.end_epoch()
+        avg_loss2 = trainer_2.end_epoch()
+        if epoch % 10 == 0:
+            print(
+                f'Epoch {epoch}/{epochs}, Loss1: {avg_loss1:.4f}, Loss2: {avg_loss2:.4f}'
+            )
+
+        similarity_tracker.add_similarity()
+
+        combined_loss = avg_loss1 + avg_loss2
+        if early_stopping.step(combined_loss):
+            print(
+                f'Early stopping at epoch {epoch}: '
+                f'no improvement for {early_stopping.patience} epochs.'
+            )
+            break
+
+    similarity_tracker.add_similarity()
+
+    similarities = np.array(similarity_tracker.similarities).T
+    losses_1 = np.array(trainer_1.losses)
+    losses_2 = np.array(trainer_2.losses)
+    plot_results(
+        similarities,
+        losses_1,
+        losses_2,
+        n_samples,
+        n_features,
+        n_classes,
+        hidden_dim,
+        epochs,
+        cluster_std,
     )
 
 
 def main():
-    from itertools import product
-    for n_samples, n_features, n_classes, hidden_dim, epochs, cluster_std in product(
-        [200],
-        [10],
-        [2, 4, 20],
-        [2, 6, 10, 20, 100],
-        [250],
-        [0.1, 5, 10],
-    ):
-        print(
-            f"Running experiment with n_samples={n_samples}, n_features={n_features}, n_classes={n_classes}, hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}"
-        )
-        experiment(
-            n_samples,
-            n_features,
-            n_classes,
-            hidden_dim,
-            epochs,
-            cluster_std,
+    def experiment_options() -> Generator[tuple[int, int, int, int, int, float]]:
+        options = {
+            'n_samples': [200],
+            'n_features': [10],
+            'n_classes': [2, 4, 20],
+            'hidden_dim': [2, 6, 10, 20, 100],
+            'epochs': [250],
+            'cluster_std': [0.1, 5, 10],
+        }
+        yield from product(
+            options['n_samples'],
+            options['n_features'],
+            options['n_classes'],
+            options['hidden_dim'],
+            options['epochs'],
+            options['cluster_std'],
         )
 
+    for options in experiment_options():
+        experiment(*options)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
