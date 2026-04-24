@@ -73,6 +73,39 @@ def train_one_batch(X, y, model, optimizer, criterion):
     return loss.item()
 
 
+def make_blobs_dataset(n_samples, n_features, n_classes, cluster_std):
+    X, y = make_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        centers=n_classes,
+        cluster_std=cluster_std,
+        random_state=42,
+    )
+    return X, y
+
+def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
+    # Make a set of n_classes points in n_features dimensions.
+    corners = np.random.randn(n_classes, n_features)
+
+    # Make a Delauney triangulation of the corners to get simplices.
+    from scipy.spatial import Delaunay
+    tri = Delaunay(corners)
+
+    # Sample points uniformly from the simplices.
+    points = []
+    for simplex in tri.simplices:
+        simplex_corners = corners[simplex]
+        for _ in range(n_samples // len(tri.simplices)):
+            weights = np.random.dirichlet(np.ones(len(simplex)))
+            point = np.dot(weights, simplex_corners)
+            points.append(point)
+
+    return np.array(points), np.repeat(np.arange(n_classes), n_samples // len(tri.simplices))
+
+
+make_dataset = make_blobs_dataset
+
+
 def experiment(
     n_samples,
     n_features,
@@ -81,13 +114,8 @@ def experiment(
     epochs,
     cluster_std,
 ):
-    X_, y_ = make_blobs(
-        n_samples=n_samples,
-        n_features=n_features,
-        centers=n_classes,
-        cluster_std=cluster_std,
-        random_state=42,
-    )
+    X_, y_ = make_dataset(n_samples, n_features, n_classes, cluster_std)
+
     X_tensor = torch.Tensor(X_).to(device)
     y_tensor = torch.LongTensor(y_).to(device)
     dataset = TensorDataset(X_tensor, y_tensor)
