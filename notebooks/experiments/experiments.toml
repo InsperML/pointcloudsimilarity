@@ -1,0 +1,15 @@
+[sweep]
+block_classes = [
+#    "ResidualBlock",
+#    "SimpleMLP",
+    "SelfAttentionBlock",
+#    "SelfAttentionResidualBlock",
+#    "TransformerBlock",
+]
+n_blocks     = [8, 16]
+n_samples    = [400]
+n_features   = [10]
+n_classes    = [10]
+hidden_dim   = [100]
+epochs       = [500]
+cluster_std  = [5]
