@@ -22,6 +22,21 @@ config = toml.load(script_dir / "settings.toml")['figures']
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def make_equidistant_centers(n_classes, n_features, scale):
+    assert n_features >= n_classes - 1, (
+        f"Need n_features >= n_classes-1 for equidistant centers, "
+        f"got {n_features} < {n_classes - 1}"
+    )
+    # Centered identity rows are equidistant (distance sqrt(2)); SVD gives
+    # the n_classes-1 non-trivial directions as an orthonormal embedding.
+    basis = np.eye(n_classes) - 1.0 / n_classes
+    U, S, _ = np.linalg.svd(basis, full_matrices=False)
+    coords = U[:, :n_classes - 1] * S[:n_classes - 1] * scale
+    centers = np.zeros((n_classes, n_features))
+    centers[:, :n_classes - 1] = coords
+    return centers
+
+
 def sweep_model_similarity(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
     #ks = np.arange(1, 500, 1)
@@ -191,11 +206,13 @@ def experiment(
     block_class=ResidualBlock,
     n_blocks=1,
     patience=200,
+    center_scale=10.0,
 ):
+    centers = make_equidistant_centers(n_classes, n_features, scale=center_scale)
     X_, y_ = make_blobs(
         n_samples=n_samples,
         n_features=n_features,
-        centers=n_classes,
+        centers=centers,
         cluster_std=cluster_std,
         random_state=42,
     )
@@ -221,7 +238,7 @@ def experiment(
 
     # Training setup
     criterion = torch.nn.CrossEntropyLoss()
-    lr = 5e-4
+    lr = 1e-3
     optimizer1 = torch.optim.Adam(model1.parameters(), lr=lr)
     optimizer2 = torch.optim.Adam(model2.parameters(), lr=lr)
 
@@ -287,7 +304,7 @@ def experiment(
     print(F.softmax(z2[:2, :], dim=1))
 
     block_name = block_class.__name__
-    fname_base = f'{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}_{block_name}_{n_blocks}blocks'
+    fname_base = f'{n_samples}_{n_features}_{n_classes}_{hidden_dim}_{epochs}_{cluster_std}_{center_scale}_{block_name}_{n_blocks}blocks'
 
     out_dir = script_dir / config['output_dir']
     torch.save(model1.state_dict(), out_dir / f'model1_{fname_base}.pt')
@@ -348,6 +365,7 @@ def main():
             hidden_dim,
             epochs,
             cluster_std,
+            center_scale,
     ) in product(
             block_classes,
             sweep['n_blocks'],
@@ -357,11 +375,13 @@ def main():
             sweep['hidden_dim'],
             sweep['epochs'],
             sweep['cluster_std'],
+            sweep['center_scale'],
     ):
         print(
             f"Running experiment: block={block_class.__name__}, n_blocks={n_blocks}, "
             f"n_samples={n_samples}, n_features={n_features}, n_classes={n_classes}, "
-            f"hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}")
+            f"hidden_dim={hidden_dim}, epochs={epochs}, cluster_std={cluster_std}, "
+            f"center_scale={center_scale}")
         experiment(
             n_samples,
             n_features,
@@ -371,6 +391,7 @@ def main():
             cluster_std,
             block_class=block_class,
             n_blocks=n_blocks,
+            center_scale=center_scale,
         )
 
 
