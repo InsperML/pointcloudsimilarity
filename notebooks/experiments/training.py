@@ -196,6 +196,41 @@ def train_one_batch(X, y, model, optimizer, criterion):
     return loss.item()
 
 
+def make_blobs_dataset(n_samples, n_features, n_classes, cluster_std):
+    X, y = make_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        centers=n_classes,
+        cluster_std=cluster_std,
+        random_state=42,
+    )
+    return X, y
+
+def make_geometric_dataset(n_samples, n_features, n_classes, cluster_std):
+    # Make a set of n_classes points in n_features dimensions.
+    corners = np.random.randn(n_classes+n_features, n_features)
+
+    # Make a Delauney triangulation of the corners to get simplices.
+    from scipy.spatial import Delaunay
+    tri = Delaunay(corners)
+
+    # Sample points uniformly from the simplices.
+    points = []
+    classes = []
+    for idx, simplex in enumerate(tri.simplices):
+        simplex_corners = corners[simplex]
+        for _ in range(n_samples // len(tri.simplices)):
+            weights = np.random.dirichlet(np.ones(len(simplex)))
+            point = np.dot(weights, simplex_corners)
+            points.append(point)
+            classes.append(simplex)
+
+    return np.array(points), np.array(classes)
+
+
+make_dataset = make_geometric_dataset
+
+
 def experiment(
     n_samples,
     n_features,
@@ -218,6 +253,7 @@ def experiment(
     )
     X_tensor = torch.Tensor(X_).to(device)
     y_tensor = torch.LongTensor(y_).to(device)
+    
     dataset = TensorDataset(X_tensor, y_tensor)
     dataloader = DataLoader(dataset, batch_size=X_tensor.shape[0], shuffle=True)
 
@@ -225,22 +261,17 @@ def experiment(
         input_dim=n_features,
         hidden_dim=hidden_dim,
         output_dim=n_classes,
-        block_class=block_class,
-        n_blocks=n_blocks,
     ).to(device)
     model2 = MLPNetwork(
         input_dim=n_features,
         hidden_dim=hidden_dim,
         output_dim=n_classes,
-        block_class=block_class,
-        n_blocks=n_blocks,
     ).to(device)
 
     # Training setup
     criterion = torch.nn.CrossEntropyLoss()
-    lr = 1e-3
-    optimizer1 = torch.optim.Adam(model1.parameters(), lr=lr)
-    optimizer2 = torch.optim.Adam(model2.parameters(), lr=lr)
+    optimizer1 = torch.optim.Adam(model1.parameters(), lr=1e-3)
+    optimizer2 = torch.optim.Adam(model2.parameters(), lr=1e-3)
 
     # Training loop
 
