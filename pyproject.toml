@@ -13,6 +13,7 @@ dependencies = [
     "datasets>=4.4.1",
     "faiss-gpu-cu12>=1.13.0",
     "gensim>=4.4.0",
+    "insperdatasets",
     "numpy>=2.3.4",
     "pot>=0.9.6.post1",
     "protobuf>=6.33.1",
@@ -53,3 +54,4 @@ addopts = "--benchmark-columns=mean,min,max,stddev"
 [tool.uv.sources]
 rtd = { git = "https://github.com/IlyaTrofimov/RTD.git" }
 ripserplusplus = { git = "https://github.com/simonzhang00/ripser-plusplus.git" }
+insperdatasets = { git = "https://github.com/InsperML/insperdatasets.git" }
