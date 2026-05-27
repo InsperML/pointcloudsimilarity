@@ -1,18 +1,22 @@
 import math
-import insperdatasets.audio.utils as audio_utils
-from insperdatasets.core.datasets import FileLoadingDataset
-import insperdatasets.audio.fma as fma
-from tqdm import tqdm
-from torch.utils.data import DataLoader
+import time
 from functools import partial
-from torch import nn
+
+import insperdatasets.audio.fma as fma
+import insperdatasets.audio.utils as audio_utils
 import torch
 import torch.nn.functional as F
 import torchaudio.transforms as T
-import time
+from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+# Set to False for full training, True for quick tests on a subset of data.
+__DEBUG = True
+__NUM_SAMPLES_DEBUG = 10
+
 
 class ConvolutionalVAE(nn.Module):
-
     def __init__(
         self,
         n_samples: int = 48000,
@@ -56,11 +60,13 @@ class ConvolutionalVAE(nn.Module):
         enc_layers = []
         for i in range(n_steps):
             enc_layers += [
-                nn.Conv2d(enc_channels[i],
-                          enc_channels[i + 1],
-                          kernel_size=3,
-                          stride=2,
-                          padding=1),
+                nn.Conv2d(
+                    enc_channels[i],
+                    enc_channels[i + 1],
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                ),
                 nn.BatchNorm2d(enc_channels[i + 1]),
                 nn.LeakyReLU(0.2, inplace=True),
             ]
@@ -93,7 +99,8 @@ class ConvolutionalVAE(nn.Module):
                     stride=2,
                     padding=1,
                     output_padding=1,
-                ))
+                )
+            )
             if is_last:
                 dec_layers.append(nn.Sigmoid())
             else:
@@ -102,8 +109,6 @@ class ConvolutionalVAE(nn.Module):
                     nn.LeakyReLU(0.2, inplace=True),
                 ]
         self.decoder_conv = nn.Sequential(*dec_layers)
-
-    # ------------------------------------------------------------------
 
     def _to_mel(self, x: torch.Tensor) -> torch.Tensor:
         """[B, 1, n_samples] → [B, 1, n_mels, n_frames], log1p-scaled"""
@@ -120,8 +125,7 @@ class ConvolutionalVAE(nn.Module):
         h = self.encoder_conv(mel).flatten(1)
         return self.fc_mu(h), self.fc_logvar(h)
 
-    def reparameterize(self, mu: torch.Tensor,
-                       logvar: torch.Tensor) -> torch.Tensor:
+    def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         if self.training:
             return mu + torch.exp(0.5 * logvar) * torch.randn_like(mu)
         return mu
@@ -131,7 +135,7 @@ class ConvolutionalVAE(nn.Module):
         h = self.fc_decode(z).view(-1, self.enc_ch, self.h_enc, self.w_enc)
         out = self.decoder_conv(h)
         # Crop to exact mel size (ConvTranspose2d may overshoot by 1 px)
-        return out[:, :, :self.mel_h, :self.mel_w]
+        return out[:, :, : self.mel_h, : self.mel_w]
 
     def forward(self, x: torch.Tensor):
         """[B, 1, n_samples] → (recon_mel, mel, mu, logvar)"""
@@ -148,18 +152,10 @@ class ConvolutionalVAE(nn.Module):
             return self._from_mel_to_audio(recon_mel)
 
 
-# ------------------------------------------------------------------
-# Loss
-
-
 def vae_loss(recon_mel, mel, mu, logvar, kl_weight: float = 1.0):
     recon = F.mse_loss(recon_mel, mel)
     kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
     return recon + kl_weight * kl, recon, kl
-
-
-# ------------------------------------------------------------------
-# Training loop
 
 
 def train_vae(
@@ -169,30 +165,34 @@ def train_vae(
     n_epochs: int = 50,
     lr: float = 1e-3,
     kl_weight: float = 1.0,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
-) -> dict:
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+) -> dict[str, list[float]]:
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     history = {
         k: []
-        for k in ("train_loss", "val_loss", "train_recon", "val_recon",
-                  "train_kl", "val_kl")
+        for k in (
+            'train_loss',
+            'val_loss',
+            'train_recon',
+            'val_recon',
+            'train_kl',
+            'val_kl',
+        )
     }
 
     timestamp = int(time.time())
-    run_id = f"vae_epochs{n_epochs}_lr{lr}_kl{kl_weight}_{timestamp}"
+    run_id = f'vae_epochs{n_epochs}_lr{lr}_kl{kl_weight}_{timestamp}'
 
-    for epoch in tqdm(range(n_epochs),
-                      desc="Training VAE",
-                      position=0,
-                      leave=True):
+    for epoch in tqdm(range(n_epochs), desc='Training VAE', position=0, leave=True):
         model.train()
-        t = {"loss": 0.0, "recon": 0.0, "kl": 0.0}
-        for batch in tqdm(train_loader,
-                          desc="Train batches",
-                          position=1,
-                          leave=False):
+        t = {
+            'loss': 0.0,
+            'recon': 0.0,
+            'kl': 0.0,
+        }
+        for batch in tqdm(train_loader, desc='Train batches', position=1, leave=False):
             audio_data, mask, label = batch
             x = audio_data.to(device)
             optimizer.zero_grad()
@@ -200,44 +200,47 @@ def train_vae(
             loss, recon, kl = vae_loss(recon_mel, mel, mu, logvar, kl_weight)
             loss.backward()
             optimizer.step()
-            t["loss"] += loss.item()
-            t["recon"] += recon.item()
-            t["kl"] += kl.item()
+            t['loss'] += loss.item()
+            t['recon'] += recon.item()
+            t['kl'] += kl.item()
 
         n = len(train_loader)
-        history["train_loss"].append(t["loss"] / n)
-        history["train_recon"].append(t["recon"] / n)
-        history["train_kl"].append(t["kl"] / n)
+        history['train_loss'].append(t['loss'] / n)
+        history['train_recon'].append(t['recon'] / n)
+        history['train_kl'].append(t['kl'] / n)
 
         model.eval()
-        v = {"loss": 0.0, "recon": 0.0, "kl": 0.0}
+        v = {
+            'loss': 0.0,
+            'recon': 0.0,
+            'kl': 0.0,
+        }
         with torch.no_grad():
             for batch in tqdm(
-                    val_loader,
-                    desc="Val batches",
-                    position=1,
-                    leave=False,
+                val_loader,
+                desc='Val batches',
+                position=1,
+                leave=False,
             ):
                 audio_data, mask, label = batch
                 x = audio_data.to(device)
                 recon_mel, mel, mu, logvar = model(x)
-                loss, recon, kl = vae_loss(recon_mel, mel, mu, logvar,
-                                           kl_weight)
-                v["loss"] += loss.item()
-                v["recon"] += recon.item()
-                v["kl"] += kl.item()
+                loss, recon, kl = vae_loss(recon_mel, mel, mu, logvar, kl_weight)
+                v['loss'] += loss.item()
+                v['recon'] += recon.item()
+                v['kl'] += kl.item()
 
         n = len(val_loader)
-        history["val_loss"].append(v["loss"] / n)
-        history["val_recon"].append(v["recon"] / n)
-        history["val_kl"].append(v["kl"] / n)
+        history['val_loss'].append(v['loss'] / n)
+        history['val_recon'].append(v['recon'] / n)
+        history['val_kl'].append(v['kl'] / n)
 
         print(
-            f"Epoch {epoch + 1}/{n_epochs} | "
-            f"train loss={history['train_loss'][-1]:.4f} "
-            f"(recon={history['train_recon'][-1]:.4f} kl={history['train_kl'][-1]:.4f}) | "
-            f"val loss={history['val_loss'][-1]:.4f} "
-            f"(recon={history['val_recon'][-1]:.4f} kl={history['val_kl'][-1]:.4f})"
+            f'Epoch {epoch + 1}/{n_epochs} | '
+            f'train loss={history["train_loss"][-1]:.4f} '
+            f'(recon={history["train_recon"][-1]:.4f} kl={history["train_kl"][-1]:.4f}) | '
+            f'val loss={history["val_loss"][-1]:.4f} '
+            f'(recon={history["val_recon"][-1]:.4f} kl={history["val_kl"][-1]:.4f})'
         )
         torch.save(model.state_dict(), f'vae_model_weights_{run_id}.pt')
 
@@ -245,9 +248,9 @@ def train_vae(
 
 
 def main():
-    AUDIO_DURATION = 3
-    SAMPLE_RATE = 16000
-    N_SAMPLES = AUDIO_DURATION * SAMPLE_RATE
+    AUDIO_DURATION_SEC = 3
+    SAMPLE_RATE_HZ = 16000
+    N_SAMPLES = AUDIO_DURATION_SEC * SAMPLE_RATE_HZ
 
     dataset = fma.FMADataset(
         data_dir='/mnt/data3/fma/fma',
@@ -259,8 +262,13 @@ def main():
     )
 
     # Downsample to 1/100 for faster tests
-    #dataset = torch.utils.data.Subset(dataset, range(0, len(dataset), 100))
-    
+    if __DEBUG:
+        num_samples = min(__NUM_SAMPLES_DEBUG, len(dataset))
+        print(
+            f'Running in DEBUG mode: using only {num_samples} samples'
+            f'({num_samples / len(dataset):.2%}) of the dataset for quick tests.'
+        )
+        dataset = torch.utils.data.Subset(dataset, range(0, num_samples))
 
     print(f'We have {len(dataset)} tracks in the dataset.')
 
@@ -292,7 +300,7 @@ def main():
 
     model = ConvolutionalVAE(
         n_samples=N_SAMPLES,
-        sample_rate=SAMPLE_RATE,
+        sample_rate=SAMPLE_RATE_HZ,
         n_fft=1024,
         hop_length=512,
         n_mels=128,
@@ -310,16 +318,14 @@ def main():
         kl_weight=1.0,
         device='cuda',
     )
-    
-    
-    
+
     # for batch in tqdm(dataloader):
     #     audio_data, mask, label = batch
     #     audio_data = audio_data.to('cuda')
     #     recon_mel, mel, mu, logvar = model(audio_data)
-    #print(f"mel: {mel.shape}, recon: {recon_mel.shape}, mu: {mu.shape}")
-    #break
+    # print(f"mel: {mel.shape}, recon: {recon_mel.shape}, mu: {mu.shape}")
+    # break
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
