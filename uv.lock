@@ -2340,6 +2340,8 @@ dependencies = [
     { name = "tensorflow" },
     { name = "tensorflow-datasets" },
     { name = "toml" },
+    { name = "torch" },
+    { name = "tqdm" },
     { name = "transformers" },
     { name = "umap-learn" },
 ]
@@ -2355,9 +2357,6 @@ dev = [
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "pytest-benchmark" },
-    { name = "scikit-learn" },
-    { name = "torch" },
-    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -2380,6 +2379,8 @@ requires-dist = [
     { name = "tensorflow", specifier = ">=2.20.0" },
     { name = "tensorflow-datasets", specifier = ">=4.9.9" },
     { name = "toml", specifier = ">=0.10.2" },
+    { name = "torch", specifier = ">=2.9.1" },
+    { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transformers", specifier = ">=4.57.3" },
     { name = "umap-learn", specifier = ">=0.5.9.post2" },
 ]
@@ -2390,9 +2391,6 @@ dev = [
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
-    { name = "scikit-learn", specifier = ">=1.7.2" },
-    { name = "torch", specifier = ">=2.9.1" },
-    { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
 [[package]]
