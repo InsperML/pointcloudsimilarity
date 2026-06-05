@@ -6,7 +6,7 @@ from .tas_core.tas_cpu import (
     mean_neighborhood_similarity_from_points,
     normalize_tas,
 )
-from .tas_core.tas_faiss import compute_nngs_faiss, TASFAISS
+from .tas_core.tas_faiss import TASFAISS
 from .tas_core.tas_torch import compute_tas_pytorch_batched
 
 
@@ -118,7 +118,6 @@ class TASSimilarityTorch(Similarity):
         )
 
         if self.normalize:
-
             # Apply Normalization
             # Notice that min_bound would only be 1 if k >= N, which is handled above.
             min_bound = hypergeometric_bound(
@@ -164,21 +163,20 @@ class TASSimilarityFaiss(Similarity):
         self.gpu = gpu
         self.normalize = normalize
         self.trained = False
-        self.faiss_calculator = None
+        self.faiss_calculator = TASFAISS(
+            approximate=self.approximate,
+            metric=self.metric,
+            gpu=self.gpu,
+        )
 
     def __call__(self, pc1, pc2, **kwargs):
         """
         Compute TAS similarity using FAISS.
         """
-        if self.trained==False:
-            self.faiss_calculator = TASFAISS(
-                approximate=self.approximate,
-                metric=self.metric,
-                gpu=self.gpu,
-            )
+        if not self.trained:
             self.faiss_calculator.fit(pc1, pc2)
             self.trained = True
-        
+
         tas_raw = self.faiss_calculator(
             k=self.k,
             batch_size=self.batch_size,
