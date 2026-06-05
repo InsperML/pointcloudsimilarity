@@ -6,8 +6,9 @@
 
 
 import numpy as np
+
 from .core_similarity import Similarity
-import logging
+
 
 class GULPSimilarity(Similarity):
     def __init__(self, lambda_=1.0, centralize_data=True):
@@ -33,8 +34,10 @@ class GULPSimilarity(Similarity):
         Returns:
         float: GULP similarity between the two point clouds.
         """
-        return gulp_sim(pc1, pc2, lambda_=self.lambda_,
-                        centralize_data=self.centralize_data)
+        return gulp_sim(
+            pc1, pc2, lambda_=self.lambda_, centralize_data=self.centralize_data
+        )
+
 
 def gulp(X, Y, lambda_=1.0, centralize_data=True):
     """This is GULP as described in:
@@ -64,10 +67,8 @@ def gulp(X, Y, lambda_=1.0, centralize_data=True):
     sigma_y = empirical_cross_variance(Y, Y)
     sigma_xy = empirical_cross_variance(X, Y)
 
-    sigma_x_reg_inv = np.linalg.inv(sigma_x +
-                                    lambda_ * np.eye(sigma_x.shape[0]))
-    sigma_y_reg_inv = np.linalg.inv(sigma_y +
-                                    lambda_ * np.eye(sigma_y.shape[0]))
+    sigma_x_reg_inv = np.linalg.inv(sigma_x + lambda_ * np.eye(sigma_x.shape[0]))
+    sigma_y_reg_inv = np.linalg.inv(sigma_y + lambda_ * np.eye(sigma_y.shape[0]))
 
     a1 = sigma_x_reg_inv @ sigma_x
     term1 = np.trace(a1 @ a1)
@@ -84,4 +85,4 @@ def gulp(X, Y, lambda_=1.0, centralize_data=True):
 
 
 def gulp_sim(*args, **kwargs):
-    return 1-gulp(*args, **kwargs)
+    return 1 - gulp(*args, **kwargs)

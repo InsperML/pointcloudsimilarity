@@ -1,10 +1,9 @@
 # This implements Gromov-Wasserstein Distances for Point Cloud Similarity
 
-import numpy as np
-from .core_similarity import Similarity
-
 import ot
 from scipy.spatial.distance import cdist
+
+from .core_similarity import Similarity
 
 
 class GWSimilarity(Similarity):
@@ -22,6 +21,7 @@ class GWSimilarity(Similarity):
         """
         return gw_sim(pc1, pc2)
 
+
 def gw_sim(X1, X2, epsilon=1e-10):
     """Compute the Gromov-Wasserstein similarity between two point clouds X1 and X2.
 
@@ -35,7 +35,7 @@ def gw_sim(X1, X2, epsilon=1e-10):
     """
 
     n_points = X1.shape[0]
-    
+
     # --- 1. Compute the pairwise distance matrices within each space ---
     # Gromov-Wasserstein compares these distance matrices.
     C1 = cdist(X1, X1, metric='euclidean')
@@ -50,6 +50,9 @@ def gw_sim(X1, X2, epsilon=1e-10):
     q = ot.unif(n_points)
 
     # --- 4. Compute the Gromov-Wasserstein distance ---
-    gw_dist = ot.gromov.gromov_wasserstein2(C1, C2, p, q, loss_fun='square_loss', max_iter=1e6)
+    gw_dist = ot.gromov.gromov_wasserstein2(
+        C1, C2, p, q, loss_fun='square_loss', max_iter=1e6
+    )
 
-    return 1/(1+gw_dist)
+    assert isinstance(gw_dist, float), "Gromov-Wasserstein distance should be a scalar."
+    return 1 / (1 + gw_dist)

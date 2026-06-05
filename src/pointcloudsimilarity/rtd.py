@@ -6,16 +6,16 @@
 # https://arxiv.org/pdf/2201.00058
 
 
-import numpy as np
+import logging
+
 from .core_similarity import Similarity
+
 try:
     import rtd
     HAS_RTD = True
-except ImportError as e:
-    logging.error("RTD is not installed. Please install it to use this feature.")
+except ImportError:
+    logging.error('RTD is not installed. Please install it to use this feature.')
     HAS_RTD = False
-    
-import logging
 
 
 class RTDSimilarity(Similarity):
@@ -39,5 +39,4 @@ class RTDSimilarity(Similarity):
         """
         if not HAS_RTD:
             return 0.0  # or raise an exception, depending on how you want to handle this case
-        return 1/(1+rtd.rtd(pc1, pc2))
-
+        return 1 / (1 + rtd.rtd(pc1, pc2))

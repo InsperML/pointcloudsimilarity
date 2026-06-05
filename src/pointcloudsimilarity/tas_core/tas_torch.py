@@ -166,8 +166,6 @@ def compute_jaccards_torch(
     X_sq_norms = (X**2).sum(dim=1, keepdim=True)
     Y_sq_norms = (Y**2).sum(dim=1, keepdim=True)
 
-    total_intersection = 0.0
-
     # 2. Batched Processing
     # We iterate through the dataset in chunks to calculate neighbors and similarity
     # This keeps VRAM usage constant regardless of N.

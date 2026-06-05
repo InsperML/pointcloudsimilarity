@@ -1,8 +1,9 @@
 # Procrustes Similarity
 
-from .core_similarity import Similarity
-import numpy as np
 from scipy.spatial import procrustes
+
+from .core_similarity import Similarity
+
 
 class ProcrustesSimilarity(Similarity):
     def __call__(self, pc1, pc2, **kwargs):
@@ -18,4 +19,4 @@ class ProcrustesSimilarity(Similarity):
         float: Procrustes distance between the two point clouds.
         """
         _, _, disparity = procrustes(pc1, pc2)
-        return 1-disparity
+        return 1 - disparity

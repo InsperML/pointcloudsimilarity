@@ -1,7 +1,9 @@
-# NNGS, as described in "Measuring similarity between embedding spaces using induced neighborhood graphs" (https://arxiv.org/abs/2411.08687)
+"""
+NNGS, as described in "Measuring similarity between embedding spaces using induced
+neighborhood graphs" (https://arxiv.org/abs/2411.08687)
+"""
 
 import numpy as np
-import scipy.stats as stats
 from sklearn.neighbors import kneighbors_graph
 
 
