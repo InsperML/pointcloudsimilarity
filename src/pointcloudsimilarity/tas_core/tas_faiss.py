@@ -1,11 +1,25 @@
 import numpy as np
-import faiss
 import torch
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
+
+
+def _require_faiss():
+    if faiss is None:
+        raise ImportError(
+            "faiss is required for FAISS-based similarity. Install it with "
+            "`uv sync --extra faiss` (or `pip install pointcloudsimilarity[faiss]`)."
+        )
+
 
 class TASFAISS:
     def __init__(self, approximate=False, metric='cosine', gpu=True):
+        _require_faiss()
         assert metric in ['euclidean', 'cosine'], "Metric must be 'euclidean' or 'cosine'"
-        
+
         self.approximate = approximate
         self.metric = metric
         self.gpu = gpu
@@ -137,6 +151,8 @@ def compute_nngs_faiss(X, Y, k=5, approximate=False, metric='euclidean', batch_s
     Returns:
         float: NNGS score.
     """
+    _require_faiss()
+
     # 1. Validation & Prep
     n_samples, d = X.shape
     assert n_samples == Y.shape[0]
