@@ -2340,31 +2340,32 @@ name = "pointcloudsimilarity"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "accelerate" },
-    { name = "bitsandbytes" },
-    { name = "datasets" },
-    { name = "gensim" },
-    { name = "insperdatasets" },
     { name = "numpy" },
     { name = "pot" },
-    { name = "protobuf" },
-    { name = "pytest" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "sentence-transformers" },
-    { name = "tensorflow" },
-    { name = "tensorflow-datasets" },
-    { name = "toml" },
     { name = "torch" },
-    { name = "tqdm" },
-    { name = "transformers" },
-    { name = "umap-learn" },
 ]
 
 [package.optional-dependencies]
 faiss = [
     { name = "faiss-cpu", marker = "platform_machine != 'x86_64' or sys_platform != 'linux'" },
     { name = "faiss-gpu-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+notebooks = [
+    { name = "accelerate" },
+    { name = "bitsandbytes" },
+    { name = "datasets" },
+    { name = "gensim" },
+    { name = "insperdatasets" },
+    { name = "protobuf" },
+    { name = "sentence-transformers" },
+    { name = "tensorflow" },
+    { name = "tensorflow-datasets" },
+    { name = "toml" },
+    { name = "tqdm" },
+    { name = "transformers" },
+    { name = "umap-learn" },
 ]
 rtd = [
     { name = "ripserplusplus" },
@@ -2375,41 +2376,42 @@ rtd = [
 dev = [
     { name = "ipykernel" },
     { name = "matplotlib" },
+    { name = "pytest" },
     { name = "pytest-benchmark" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate", specifier = ">=1.12.0" },
-    { name = "bitsandbytes", specifier = ">=0.48.2" },
-    { name = "datasets", specifier = ">=4.4.1" },
+    { name = "accelerate", marker = "extra == 'notebooks'", specifier = ">=1.12.0" },
+    { name = "bitsandbytes", marker = "extra == 'notebooks'", specifier = ">=0.48.2" },
+    { name = "datasets", marker = "extra == 'notebooks'", specifier = ">=4.4.1" },
     { name = "faiss-cpu", marker = "(platform_machine != 'x86_64' and extra == 'faiss') or (sys_platform != 'linux' and extra == 'faiss')", specifier = ">=1.13.0" },
     { name = "faiss-gpu-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'faiss'", specifier = ">=1.13.0" },
-    { name = "gensim", specifier = ">=4.4.0" },
-    { name = "insperdatasets", git = "https://github.com/InsperML/insperdatasets.git" },
+    { name = "gensim", marker = "extra == 'notebooks'", specifier = ">=4.4.0" },
+    { name = "insperdatasets", marker = "extra == 'notebooks'", git = "https://github.com/InsperML/insperdatasets.git" },
     { name = "numpy", specifier = ">=2.3.4" },
     { name = "pot", specifier = ">=0.9.6.post1" },
-    { name = "protobuf", specifier = ">=6.33.1" },
-    { name = "pytest", specifier = ">=9.0.1" },
+    { name = "protobuf", marker = "extra == 'notebooks'", specifier = ">=6.33.1" },
     { name = "ripserplusplus", marker = "extra == 'rtd'", git = "https://github.com/simonzhang00/ripser-plusplus.git" },
     { name = "rtd", marker = "extra == 'rtd'", git = "https://github.com/IlyaTrofimov/RTD.git" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "scipy", specifier = ">=1.16.3" },
-    { name = "sentence-transformers", specifier = ">=5.1.2" },
-    { name = "tensorflow", specifier = ">=2.20.0" },
-    { name = "tensorflow-datasets", specifier = ">=4.9.9" },
-    { name = "toml", specifier = ">=0.10.2" },
+    { name = "sentence-transformers", marker = "extra == 'notebooks'", specifier = ">=5.1.2" },
+    { name = "tensorflow", marker = "extra == 'notebooks'", specifier = ">=2.20.0" },
+    { name = "tensorflow-datasets", marker = "extra == 'notebooks'", specifier = ">=4.9.9" },
+    { name = "toml", marker = "extra == 'notebooks'", specifier = ">=0.10.2" },
     { name = "torch", specifier = ">=2.9.1" },
-    { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "transformers", specifier = ">=4.57.3" },
-    { name = "umap-learn", specifier = ">=0.5.9.post2" },
+    { name = "tqdm", marker = "extra == 'notebooks'", specifier = ">=4.67.1" },
+    { name = "transformers", marker = "extra == 'notebooks'", specifier = ">=4.57.3" },
+    { name = "umap-learn", marker = "extra == 'notebooks'", specifier = ">=0.5.9.post2" },
 ]
-provides-extras = ["faiss", "rtd"]
+provides-extras = ["faiss", "rtd", "notebooks"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
+    { name = "pytest", specifier = ">=9.0.1" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
 ]
 
