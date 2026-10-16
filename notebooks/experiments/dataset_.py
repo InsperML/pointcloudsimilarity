@@ -1,18 +1,8 @@
-from pathlib import Path
-
 import numpy as np
-import toml
 import torch
 from scipy.spatial import Delaunay
 from sklearn.datasets import make_blobs
 from torch.utils.data import DataLoader, TensorDataset
-
-script_dir = Path(__file__).parent
-config = toml.load(script_dir / 'settings.toml')['figures']
-
-
-def get_device() -> torch.device:
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def make_equidistant_centers(
