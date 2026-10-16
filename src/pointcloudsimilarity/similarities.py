@@ -23,11 +23,15 @@ available_metrics = {
     "gulp": GULPSimilarity,
     "procrustes": ProcrustesSimilarity,
     "gw_sim": GWSimilarity,
+    "tas_cpu": TASSimilarityCPU,
+    "tas_faiss": TASSimilarityFaiss,
+    "tas_torch": TASSimilarityTorch,
+    "pwcca": PWCCASimilarity,
+    "rtd": RTDSimilarity,
+    # Pre-rename aliases, kept for existing scripts.
     "nngs_cpu": TASSimilarityCPU,
     "nngs_faiss": TASSimilarityFaiss,
     "nngs_torch": TASSimilarityTorch,
-    "pwcca": PWCCASimilarity,
-    "rtd": RTDSimilarity,
 }
 
 
@@ -38,7 +42,9 @@ def compute_similarity(X, Y, method='cka', **kwargs):
     Parameters:
     - X: np.ndarray, first point cloud
     - Y: np.ndarray, second point cloud
-    - method: str, similarity method to use ('cka', 'gulp', 'procrustes', 'gw_sim', 'nngs', 'pwcca')
+    - method: str, similarity method to use (a key of available_metrics, e.g.
+      'cka', 'gulp', 'procrustes', 'gw_sim', 'tas_torch', 'tas_cpu', 'tas_faiss',
+      'pwcca', 'rtd')
     - kwargs: additional keyword arguments for the similarity class
 
     Returns:

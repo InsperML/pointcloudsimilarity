@@ -6,16 +6,12 @@
 # https://arxiv.org/pdf/2201.00058
 
 
-import logging
-
 from .core_similarity import Similarity
 
 try:
     import rtd
-    HAS_RTD = True
 except ImportError:
-    logging.error('RTD is not installed. Please install it to use this feature.')
-    HAS_RTD = False
+    rtd = None
 
 
 class RTDSimilarity(Similarity):
@@ -24,6 +20,11 @@ class RTDSimilarity(Similarity):
         Initialize the RTD similarity measure.
 
         """
+        if rtd is None:
+            raise ImportError(
+                'rtd is required for RTDSimilarity. Install it with '
+                '`uv sync --extra rtd` (or `pip install pointcloudsimilarity[rtd]`).'
+            )
 
     def __call__(self, pc1, pc2, **kwargs):
         """
@@ -37,6 +38,4 @@ class RTDSimilarity(Similarity):
         Returns:
         float: RTD similarity between the two point clouds.
         """
-        if not HAS_RTD:
-            return 0.0  # or raise an exception, depending on how you want to handle this case
         return 1 / (1 + rtd.rtd(pc1, pc2))

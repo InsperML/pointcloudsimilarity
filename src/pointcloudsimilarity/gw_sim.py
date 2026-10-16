@@ -1,6 +1,7 @@
 # This implements Gromov-Wasserstein Distances for Point Cloud Similarity
 
-import ot
+import os
+
 from scipy.spatial.distance import cdist
 
 from .core_similarity import Similarity
@@ -22,6 +23,15 @@ class GWSimilarity(Similarity):
         return gw_sim(pc1, pc2)
 
 
+def _import_ot():
+    # POT imports every installed array backend. GW only needs numpy, and
+    # loading TensorFlow is slow and can crash alongside torch's triton.
+    os.environ.setdefault('POT_BACKEND_DISABLE_TENSORFLOW', '1')
+    import ot
+
+    return ot
+
+
 def gw_sim(X1, X2, epsilon=1e-10):
     """Compute the Gromov-Wasserstein similarity between two point clouds X1 and X2.
 
@@ -31,8 +41,9 @@ def gw_sim(X1, X2, epsilon=1e-10):
     (X1 and X2 must have the same number of points, but can have different dimensionality)
 
     Returns:
-    float: Gromov-Wasserstein similarity (1/GW-distance) between the two point clouds.
+    float: Gromov-Wasserstein similarity (1 / (1 + GW-distance)) between the two point clouds.
     """
+    ot = _import_ot()
 
     n_points = X1.shape[0]
 
