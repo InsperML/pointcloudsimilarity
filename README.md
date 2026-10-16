@@ -68,6 +68,17 @@ my_similarity = TASSimilarityTorch(k=3) # or choose other similarities?
 sim = my_similarity(pc1, pc2) # point cloud 1, point cloud 2 - paired point clouds
 ```
 
+To get the full spectrum across neighborhood sizes, use `tas_spectrum`. It runs a
+single nearest-neighbor search for the largest `k`:
+
+```python
+import numpy as np
+from pointcloudsimilarity.similarities import tas_spectrum
+
+ks = np.arange(1, pc1.shape[0] - 1, 10)
+spectrum = tas_spectrum(pc1, pc2, ks)  # TAS value for each k
+```
+
 
 ## Cloning and working with the repo
 

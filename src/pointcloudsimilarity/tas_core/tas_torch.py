@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from .normalization import resolve_k
@@ -28,8 +29,9 @@ def _nearest_neighbors(batch, batch_sq_norms, points, sq_norms, k):
     # dist[i, j] = ||b_i||^2 + ||p_j||^2 - 2(b_i . p_j)
     # Broadcast: (B, 1) + (1, N) - (B, N); the matmul uses Tensor Cores.
     dist = batch_sq_norms + sq_norms.t() - 2 * torch.mm(batch, points.t())
-    # Search for k + 1 because the point itself is index 0
-    _, idx = torch.topk(dist, k=k + 1, dim=1, largest=False)
+    # Search for k + 1 because the point itself is index 0. Sorted by distance,
+    # so the first k' columns are the k'-neighborhood for any k' <= k.
+    _, idx = torch.topk(dist, k=k + 1, dim=1, largest=False, sorted=True)
     return idx[:, 1:]
 
 
@@ -96,3 +98,61 @@ def compute_tas_pytorch_batched(
         only_intersection=only_intersection,
     )
     return float(jaccards.mean(dtype='float64'))
+
+
+def compute_tas_spectrum_torch(
+    X,
+    Y,
+    ks,
+    batch_size=2000,
+    device='cuda',
+    only_intersection=False,
+):
+    """
+    Raw TAS for every k in ks from a single neighbor search.
+
+    The k-neighborhoods for every k are prefixes of the max(ks)-neighborhood,
+    so one top-k search serves the whole spectrum. A neighbor is in both
+    k-neighborhoods iff max(its rank in X, its rank in Y) < k, so a cumulative
+    histogram of that max-rank gives the intersection size for every k at once.
+
+    Returns:
+    np.ndarray: Shape (len(ks),) raw TAS values (mean Jaccard, or mean
+    intersection size if only_intersection), aligned with ks.
+    """
+    n_samples = X.shape[0]
+    ks = np.array([resolve_k(k, n_samples) for k in ks])
+    if ks.size == 0:
+        raise ValueError('ks must contain at least one neighborhood size.')
+    max_k = int(ks.max())
+
+    X = torch.as_tensor(X).float().to(device)
+    Y = torch.as_tensor(Y).float().to(device)
+    X_sq_norms = (X**2).sum(dim=1, keepdim=True)
+    Y_sq_norms = (Y**2).sum(dim=1, keepdim=True)
+
+    k_range = torch.arange(1, max_k + 1, device=device)  # (K,)
+    total = torch.zeros(max_k, dtype=torch.float64, device=device)
+    for start in range(0, n_samples, batch_size):
+        end = min(start + batch_size, n_samples)
+        idx_x = _nearest_neighbors(X[start:end], X_sq_norms[start:end], X, X_sq_norms, max_k)
+        idx_y = _nearest_neighbors(Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, max_k)
+        B = idx_x.shape[0]
+
+        # rank_y[b, j]: position of point j in row b's Y neighbors, max_k if absent
+        rank_y = torch.full((B, n_samples), max_k, dtype=torch.long, device=device)
+        rank_y.scatter_(1, idx_y, (k_range - 1).expand(B, -1))
+        # The X neighbor at position p is in both k-neighborhoods iff max_rank < k
+        max_rank = torch.maximum(k_range - 1, rank_y.gather(1, idx_x))  # (B, K)
+
+        hist = torch.zeros((B, max_k + 1), device=device)
+        hist.scatter_add_(1, max_rank, torch.ones_like(max_rank, dtype=hist.dtype))
+        intersections = hist[:, :max_k].cumsum(dim=1)  # [:, k-1] -> size k
+
+        if only_intersection:
+            overlaps = intersections
+        else:
+            overlaps = intersections / ((2 * k_range) - intersections)
+        total += overlaps.sum(dim=0, dtype=torch.float64)
+
+    return (total / n_samples).cpu().numpy()[ks - 1]

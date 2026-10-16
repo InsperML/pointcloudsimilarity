@@ -1,8 +1,57 @@
+import numpy as np
+
 from .core_similarity import Similarity, resolve_device
 from .tas_core.normalization import normalize_tas, resolve_k
 from .tas_core.tas_cpu import mean_neighborhood_similarity_from_points
 from .tas_core.tas_faiss import TASFAISS
-from .tas_core.tas_torch import compute_tas_pytorch_batched
+from .tas_core.tas_torch import compute_tas_pytorch_batched, compute_tas_spectrum_torch
+
+
+def tas_spectrum(
+    pc1,
+    pc2,
+    ks,
+    normalize=True,
+    only_intersection=False,
+    device=None,
+    batch_size=2000,
+):
+    """
+    Topological Alignment Spectrum: TAS at every neighborhood size in ks.
+
+    Equivalent to calling TASSimilarityTorch(k=k)(pc1, pc2) for each k, but
+    runs a single nearest-neighbor search for the largest k.
+
+    Parameters:
+    pc1 (np.ndarray or torch.Tensor): First point cloud of shape (N, D1).
+    pc2 (np.ndarray or torch.Tensor): Second point cloud of shape (N, D2).
+    ks (iterable of int or float): Neighborhood sizes, or fractions of N.
+    normalize (bool): Apply hypergeometric normalization.
+    only_intersection (bool): Use intersection size instead of Jaccard index.
+    device (str): 'cuda', 'cpu', or 'mps'. If None, auto-detects.
+    batch_size (int): Size of GPU chunks. Decrease if OOM.
+
+    Returns:
+    np.ndarray: TAS value for each k, aligned with ks.
+    """
+    ks = list(ks)
+    n_samples = pc1.shape[0]
+    raw = compute_tas_spectrum_torch(
+        pc1,
+        pc2,
+        ks,
+        batch_size=batch_size,
+        device=resolve_device(device),
+        only_intersection=only_intersection,
+    )
+    if not normalize:
+        return raw
+    return np.array(
+        [
+            normalize_tas(r, n_samples, resolve_k(k, n_samples), only_intersection)
+            for r, k in zip(raw, ks)
+        ]
+    )
 
 
 class TASSimilarityCPU(Similarity):
