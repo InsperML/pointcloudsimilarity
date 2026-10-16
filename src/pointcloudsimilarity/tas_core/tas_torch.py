@@ -34,14 +34,20 @@ def neighborhood_overlaps(idx_x, idx_y, n_samples, k, only_intersection=False):
     return intersections / ((2 * k) - intersections)
 
 
-def _nearest_neighbors(batch, batch_sq_norms, points, sq_norms, k):
+def _nearest_neighbors(batch, batch_sq_norms, points, sq_norms, k, start):
+    """
+    Indices of the k nearest points for rows start..start+B of points, sorted by
+    distance, so the first k' columns are the k'-neighborhood for any k' <= k.
+    """
     # dist[i, j] = ||b_i||^2 + ||p_j||^2 - 2(b_i . p_j)
     # Broadcast: (B, 1) + (1, N) - (B, N); the matmul uses Tensor Cores.
     dist = batch_sq_norms + sq_norms.t() - 2 * torch.mm(batch, points.t())
-    # Search for k + 1 because the point itself is index 0. Sorted by distance,
-    # so the first k' columns are the k'-neighborhood for any k' <= k.
-    _, idx = torch.topk(dist, k=k + 1, dim=1, largest=False, sorted=True)
-    return idx[:, 1:]
+    # Exclude each point by its index. Assuming it comes back first fails for
+    # duplicate points, and when rounding makes another point look closer.
+    rows = torch.arange(dist.shape[0], device=dist.device)
+    dist[rows, rows + start] = float('inf')
+    _, idx = torch.topk(dist, k=k, dim=1, largest=False, sorted=True)
+    return idx
 
 
 def compute_jaccards_torch(
@@ -79,8 +85,8 @@ def compute_jaccards_torch(
     all_jaccards = []
     for start in range(0, n_samples, batch_size):
         end = min(start + batch_size, n_samples)
-        idx_x = _nearest_neighbors(X[start:end], X_sq_norms[start:end], X, X_sq_norms, k)
-        idx_y = _nearest_neighbors(Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, k)
+        idx_x = _nearest_neighbors(X[start:end], X_sq_norms[start:end], X, X_sq_norms, k, start)
+        idx_y = _nearest_neighbors(Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, k, start)
         jaccards = neighborhood_overlaps(idx_x, idx_y, n_samples, k, only_intersection)
         all_jaccards.append(jaccards.cpu())
 
@@ -144,8 +150,12 @@ def compute_tas_spectrum_torch(
     total = torch.zeros(max_k, dtype=torch.float64, device=device)
     for start in range(0, n_samples, batch_size):
         end = min(start + batch_size, n_samples)
-        idx_x = _nearest_neighbors(X[start:end], X_sq_norms[start:end], X, X_sq_norms, max_k)
-        idx_y = _nearest_neighbors(Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, max_k)
+        idx_x = _nearest_neighbors(
+            X[start:end], X_sq_norms[start:end], X, X_sq_norms, max_k, start
+        )
+        idx_y = _nearest_neighbors(
+            Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, max_k, start
+        )
         B = idx_x.shape[0]
 
         # rank_y[b, j]: position of point j in row b's Y neighbors, max_k if absent

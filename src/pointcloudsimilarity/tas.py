@@ -161,7 +161,7 @@ class TASSimilarityFaiss(Similarity):
         approximate=False,
         metric='euclidean',
         batch_size=5000,
-        gpu=True,
+        gpu=None,
         normalize=True,
     ):
         """
@@ -172,7 +172,7 @@ class TASSimilarityFaiss(Similarity):
         approximate (bool): Use approximate search (IVF) or exact (Flat).
         metric (str): 'euclidean' or 'cosine'.
         batch_size (int): Chunk size for Jaccard calculation.
-        gpu (bool): Use GPU if available.
+        gpu (bool): Use the GPU. If None, use it when FAISS can see one.
         normalize (bool): Apply hypergeometric normalization.
         """
         self.k = k

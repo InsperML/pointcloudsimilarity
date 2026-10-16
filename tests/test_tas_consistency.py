@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 import torch
@@ -120,3 +124,70 @@ def test_neighborhood_overlaps_matches_sets(rng):
         torch.from_numpy(idx_x), torch.from_numpy(idx_y), n, k, only_intersection=True
     )
     assert result.tolist() == expected
+
+
+def _reference_tas(X, Y, k):
+    # Brute force, excluding each point from its own neighborhood by index.
+    def neighbors(Z):
+        d = ((Z[:, None] - Z[None]) ** 2).sum(-1)
+        np.fill_diagonal(d, np.inf)
+        return np.argsort(d, axis=1, kind='stable')[:, :k]
+
+    inter = np.array([len(set(a) & set(b)) for a, b in zip(neighbors(X), neighbors(Y))])
+    m = len(X) - 1
+    raw, base = np.mean(inter / (2 * k - inter)), k / (2 * m - k)
+    return (raw - base) / (1 - base)
+
+
+@pytest.fixture
+def clouds_with_duplicates(rng):
+    # 15 pairs of exact duplicates (as with repeated sentences), placed far from
+    # the other points and from each other.
+    pairs = 30.0 * rng.standard_normal((15, D))
+    X = np.vstack([rng.standard_normal((N - 30, D)), pairs, pairs])
+    return X, X + 1e-4 * rng.standard_normal(X.shape)
+
+
+# With exact duplicates a k-neighborhood is not unique if the k-th and (k+1)-th
+# neighbors tie, so compare at k=1 on isolated pairs, where there are no ties:
+# a duplicated point's neighbor must be its twin, never itself.
+@pytest.mark.parametrize('make', _backends())
+def test_duplicate_points(make, clouds_with_duplicates):
+    X, Y = clouds_with_duplicates
+    assert make(k=1)(X, Y) == pytest.approx(_reference_tas(X, Y, 1))
+
+
+def test_spectrum_duplicate_points(clouds_with_duplicates):
+    from pointcloudsimilarity.similarities import tas_spectrum
+
+    X, Y = clouds_with_duplicates
+    assert tas_spectrum(X, Y, [1], device='cpu') == pytest.approx([_reference_tas(X, Y, 1)])
+
+
+def test_torch_neighbors_never_include_self(clouds_with_duplicates):
+    from pointcloudsimilarity.tas_core.tas_torch import _nearest_neighbors
+
+    X = torch.tensor(clouds_with_duplicates[0], dtype=torch.float32)
+    sq = (X**2).sum(dim=1, keepdim=True)
+    for start in (0, 100):  # also as a later batch
+        idx = _nearest_neighbors(X[start:], sq[start:], X, sq, 10, start)
+        own = torch.arange(start, len(X)).unsqueeze(1)
+        assert not (idx == own).any()
+
+
+def test_faiss_drop_self():
+    from pointcloudsimilarity.tas_core.tas_faiss import _drop_self
+
+    rows = np.array([[0, 5, 6], [7, 1, 8], [3, 4, 9]])  # row 2 lacks its own index
+    assert _drop_self(rows, 2).tolist() == [[5, 6], [7, 8], [3, 4]]
+
+
+def test_faiss_defaults_to_cpu_without_gpu():
+    pytest.importorskip('faiss')
+    code = (
+        'import numpy as np; from pointcloudsimilarity.similarities import TASSimilarityFaiss; '
+        'X = np.random.default_rng(0).standard_normal((100, 4)); '
+        'assert TASSimilarityFaiss(k=5)(X, X) == 1.0'
+    )
+    env = {**os.environ, 'CUDA_VISIBLE_DEVICES': ''}
+    assert subprocess.run([sys.executable, '-c', code], env=env, check=False).returncode == 0
