@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import torch
 
 from pointcloudsimilarity.similarities import (
     TASSimilarityCPU,
@@ -105,3 +106,17 @@ def test_torch_only_intersection_bounds(clouds, rng):
     assert sim(X, X) == pytest.approx(1.0)
     scores = [sim(X, rng.standard_normal((N, D))) for _ in range(20)]
     assert np.mean(scores) == pytest.approx(0.0, abs=0.02)
+
+
+def test_neighborhood_overlaps_matches_sets(rng):
+    from pointcloudsimilarity.tas_core.tas_torch import neighborhood_overlaps
+
+    n, k = 50, 6
+    idx_x = np.stack([rng.choice(n, k, replace=False) for _ in range(20)])
+    idx_y = np.stack([rng.choice(n, k, replace=False) for _ in range(20)])
+    idx_x[0, -1] = idx_y[0, -1] = -1  # FAISS "no neighbor found" must not match
+    expected = [len(set(a) & set(b) - {-1}) for a, b in zip(idx_x, idx_y)]
+    result = neighborhood_overlaps(
+        torch.from_numpy(idx_x), torch.from_numpy(idx_y), n, k, only_intersection=True
+    )
+    assert result.tolist() == expected

@@ -4,21 +4,30 @@ import torch
 from .normalization import resolve_k
 
 
-def neighborhood_overlaps(idx_x, idx_y, k, only_intersection=False):
+def neighborhood_overlaps(idx_x, idx_y, n_samples, k, only_intersection=False):
     """
     Per-point overlap between two batches of neighbor index rows.
 
     Parameters:
-    idx_x, idx_y (torch.Tensor): Neighbor indices of shape (B, k).
+    idx_x, idx_y (torch.Tensor): Neighbor indices in [0, n_samples) of shape
+        (B, k). Negative entries (FAISS's "no neighbor found") never match.
+    n_samples (int): Number of points the indices refer to.
     k (int): Number of neighbors per row.
     only_intersection (bool): Return intersection sizes instead of Jaccard indices.
 
     Returns:
     torch.Tensor: Shape (B,) float tensor.
     """
-    # Broadcasting Trick: (B, k, 1) == (B, 1, k) -> (B, k, k)
-    matches = idx_x.unsqueeze(2) == idx_y.unsqueeze(1)
-    intersections = matches.sum(dim=(1, 2)).float()
+    # Mark each row's Y neighbors, then count the X neighbors that are marked.
+    # Memory is O(B * N) rather than O(B * k^2) for comparing all pairs.
+    # Column n_samples is a never-marked sentinel for negative indices.
+    sentinel = torch.tensor(n_samples, device=idx_x.device)
+    idx_x = torch.where(idx_x < 0, sentinel, idx_x)
+    idx_y = torch.where(idx_y < 0, sentinel, idx_y)
+    in_y = torch.zeros((idx_y.shape[0], n_samples + 1), dtype=torch.bool, device=idx_y.device)
+    in_y.scatter_(1, idx_y, True)
+    in_y[:, n_samples] = False
+    intersections = in_y.gather(1, idx_x).sum(dim=1).float()
     if only_intersection:
         # Raw intersection size, normalized against k later
         return intersections
@@ -72,7 +81,7 @@ def compute_jaccards_torch(
         end = min(start + batch_size, n_samples)
         idx_x = _nearest_neighbors(X[start:end], X_sq_norms[start:end], X, X_sq_norms, k)
         idx_y = _nearest_neighbors(Y[start:end], Y_sq_norms[start:end], Y, Y_sq_norms, k)
-        jaccards = neighborhood_overlaps(idx_x, idx_y, k, only_intersection)
+        jaccards = neighborhood_overlaps(idx_x, idx_y, n_samples, k, only_intersection)
         all_jaccards.append(jaccards.cpu())
 
     return torch.cat(all_jaccards, dim=0).numpy()

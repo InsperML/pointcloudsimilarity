@@ -113,7 +113,9 @@ class TASFAISS:
         total_jaccard = 0.0
         for i in range(0, self.n_samples, batch_size):
             end = min(i + batch_size, self.n_samples)
-            jaccards = neighborhood_overlaps(t_idx_X[i:end], t_idx_Y[i:end], k)
+            jaccards = neighborhood_overlaps(
+                t_idx_X[i:end], t_idx_Y[i:end], self.n_samples, k
+            )
             total_jaccard += jaccards.sum().item()
 
         return total_jaccard / self.n_samples
