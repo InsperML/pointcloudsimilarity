@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from scipy.spatial.distance import pdist
+import torch
 
 from pointcloudsimilarity import cka
 
@@ -51,14 +51,41 @@ def test_cka_rbf_matches_textbook(structured_clouds, sigma):
     assert sim(X, Y) == pytest.approx(_textbook_rbf_cka(X, Y, sigma, sigma), abs=1e-4)
 
 
-def test_cka_rbf_auto_sigma_is_per_cloud(structured_clouds):
+def _reference_rbf_cka(X, Y, threshold):
+    # Kornblith et al.'s reference code (google-research/representation_similarity,
+    # Demo.ipynb): cka(gram_rbf(X, threshold), gram_rbf(Y, threshold)).
+    def gram_rbf(x):
+        dot_products = x.dot(x.T)
+        sq_norms = np.diag(dot_products)
+        sq_distances = -2 * dot_products + sq_norms[:, None] + sq_norms[None, :]
+        sq_median_distance = np.median(sq_distances)
+        return np.exp(-sq_distances / (2 * threshold**2 * sq_median_distance))
+
+    def center_gram(gram):
+        means = np.mean(gram, 0)
+        means -= np.mean(means) / 2
+        return gram - means[:, None] - means[None, :]
+
+    gx, gy = center_gram(gram_rbf(X)), center_gram(gram_rbf(Y))
+    return gx.ravel().dot(gy.ravel()) / (np.linalg.norm(gx) * np.linalg.norm(gy))
+
+
+@pytest.mark.parametrize('threshold', [0.2, 0.4, 0.8, 1.0])
+@pytest.mark.parametrize('y_scale', [1.0, 10.0])
+def test_cka_rbf_auto_sigma_matches_reference(structured_clouds, threshold, y_scale):
     X, Y = structured_clouds
-    Y = 5.0 * Y
-    sigma_x, sigma_y = (np.sqrt(np.median(pdist(Z) ** 2)) for Z in (X, Y))
-    expected = _textbook_rbf_cka(X, Y, sigma_x, sigma_y)
-    sim = cka.CKASimilarity(kernel='rbf', device='cpu')
-    assert sim(X, Y) == pytest.approx(expected, abs=1e-4)
-    assert sim(Y, X) == pytest.approx(expected, abs=1e-4)
+    Y = y_scale * Y
+    expected = _reference_rbf_cka(X, Y, threshold)
+    sim = cka.CKASimilarity(kernel='rbf', scale_by_alpha=threshold, device='cpu')
+    assert sim(X, Y) == pytest.approx(expected, abs=1e-5)
+    assert sim(Y, X) == pytest.approx(expected, abs=1e-5)
+
+
+@pytest.mark.parametrize('n', [7, 8, 1000])
+@pytest.mark.parametrize('q', [0.0, 0.3, 0.5, 1.0])
+def test_quantile_matches_numpy(n, q):
+    values = np.random.default_rng(n).standard_normal(n)
+    assert cka._quantile(torch.tensor(values), q) == pytest.approx(np.quantile(values, q))
 
 
 @pytest.mark.parametrize('alpha', [1e3, 1e5])
