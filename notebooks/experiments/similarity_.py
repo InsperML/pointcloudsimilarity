@@ -1,20 +1,15 @@
 import numpy as np
 import torch
-from tqdm import tqdm
 
-from pointcloudsimilarity.similarities import TASSimilarityTorch
+from pointcloudsimilarity.similarities import tas_spectrum
 
 
 def _sweep_model_similarity(
     X: torch.Tensor,
     Y: torch.Tensor,
-) -> tuple[list[int], list[np.ndarray]]:
+) -> tuple[list[int], list[float]]:
     ks = list(range(1, X.shape[0] - 1))
-    similarities_nngs = []
-    for k in tqdm(ks, disable=True):
-        metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
-        sim = metric(X, Y)
-        similarities_nngs.append(sim)
+    similarities_nngs = list(tas_spectrum(X, Y, ks, batch_size=100))
     return ks, similarities_nngs
 
 

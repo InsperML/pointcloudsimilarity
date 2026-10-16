@@ -14,7 +14,7 @@ from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
     GWSimilarity,
-    TASSimilarityTorch,
+    tas_spectrum,
     ProcrustesSimilarity,
     PWCCASimilarity,
     RTDSimilarity
@@ -38,15 +38,7 @@ def blobs_with_noise(N, D, centers, blob_std, noise_std):
 
 def nngs_sweeep(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
-    results = []
-    for k in ks:
-        nngs = TASSimilarityTorch(
-            k=k,
-            normalize=True,
-            batch_size=200,
-        )
-        sim = nngs(X, Y)
-        results.append(sim)
+    results = list(tas_spectrum(X, Y, ks, batch_size=200))
     return results, np.array(ks) / X.shape[0]
 
 if __name__ == '__main__':

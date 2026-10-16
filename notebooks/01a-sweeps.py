@@ -10,7 +10,7 @@ from tqdm import tqdm
 import pointcloudsimilarity.similarities as pcsim
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
-                                               TASSimilarityTorch,
+                                               tas_spectrum,
                                                ProcrustesSimilarity,
                                                PWCCASimilarity)
 
@@ -64,16 +64,7 @@ def sweep_model_similarity(X, Y):
         similarities_cka.append(sim)
 
     ks = np.arange(1, X.shape[0]-1, 1)
-    similarities_nngs = []
-    for k in tqdm(ks):
-        metric = TASSimilarityTorch(k=k, batch_size=X.shape[0], normalize=True)
-        #print(f"Calculating layerwise similarities using {metric.__class__.__name__}...")
-        #t0 = time.perf_counter()
-        sim = metric(X, Y)
-        #t1 = time.perf_counter()
-        #print(f"Time taken: {t1 - t0:.2f} seconds.")
-        #print(f"Calculated layerwise similarities using {metric.__class__.__name__}.")
-        similarities_nngs.append(sim)
+    similarities_nngs = list(tas_spectrum(X, Y, ks, batch_size=X.shape[0]))
 
     return alphas, similarities_cka, ks, similarities_nngs
 

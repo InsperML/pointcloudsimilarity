@@ -15,7 +15,7 @@ from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
     GWSimilarity,
-    TASSimilarityTorch,
+    tas_spectrum,
     ProcrustesSimilarity,
     PWCCASimilarity,
     RTDSimilarity
@@ -77,14 +77,7 @@ def distortion(N, D, distortion_strength, distortion_coefficient=2.0):
 
 def nngs_sweeep(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
-    results = []
-    for k in ks:
-        nngs = TASSimilarityTorch(
-            k=k,
-            normalize=True,
-        )
-        sim = nngs(X, Y)
-        results.append(sim)
+    results = list(tas_spectrum(X, Y, ks))
     return results, ks
 
 
