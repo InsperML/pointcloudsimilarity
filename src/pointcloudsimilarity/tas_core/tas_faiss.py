@@ -25,21 +25,22 @@ class TASFAISS:
         self.gpu = gpu
     
     def __create_index(self, data, gpu):
+        n_samples, d = data.shape
         # A. Create Index
         if self.approximate:
             # IVF (Inverted File System) -> The O(N log N) magic
             # nlist: Number of Voronoi cells (clusters). 
             # Rule of thumb: 4 * sqrt(N)
-            nlist = int(4 * np.sqrt(self.n_samples))
-            quantizer = faiss.IndexFlatL2(self.d) if self.metric == 'euclidean' else faiss.IndexFlatIP(self.d)
-            index = faiss.IndexIVFFlat(quantizer, self.d, nlist, 
+            nlist = int(4 * np.sqrt(n_samples))
+            quantizer = faiss.IndexFlatL2(d) if self.metric == 'euclidean' else faiss.IndexFlatIP(d)
+            index = faiss.IndexIVFFlat(quantizer, d, nlist, 
                                        faiss.METRIC_L2 if self.metric == 'euclidean' else faiss.METRIC_INNER_PRODUCT)
         else:
             # Flat (Exact) -> Brute force but highly optimized C++
             if self.metric == 'euclidean':
-                index = faiss.IndexFlatL2(self.d)
+                index = faiss.IndexFlatL2(d)
             else:
-                index = faiss.IndexFlatIP(self.d)
+                index = faiss.IndexFlatIP(d)
 
         # B. Move to GPU (if requested)
         if gpu:
@@ -50,7 +51,7 @@ class TASFAISS:
         return index
     
     def fit(self, X, Y):
-        self.n_samples, self.d = X.shape
+        self.n_samples = X.shape[0]
         assert self.n_samples == Y.shape[0], "X and Y must have the same number of samples"
 
         # Ensure float32 (FAISS requirement)

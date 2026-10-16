@@ -6,35 +6,14 @@ neighborhood graphs" (https://arxiv.org/abs/2411.08687)
 import numpy as np
 from sklearn.neighbors import kneighbors_graph
 
+from .normalization import hypergeometric_bound, normalize_tas, resolve_k
 
-def hypergeometric_bound(n, k, only_intersection=False):
-    if n < 1 or k > n:
-        return 0.0  # Edge cases
-    # Derived from Hypergeometric distribution mean for intersection size
-    # E[|A n B|] = k^2 / n
-    # E[J] approx E[Int] / (2k - E[Int])
-    if only_intersection:
-        return k**2 / n
-    else:
-        return k / (2 * n - k)
-
-
-def normalize_tas(similarity, n_points, k):
-    """
-    Normalize TAS similarity using hypergeometric bound.
-
-    Parameters:
-    similarity (float): Raw TAS similarity.
-    n_points (int): Number of points in the point clouds.
-    k (int): Number of neighbors used in NNGS.
-
-    Returns:
-    float: Normalized TAS similarity.
-    """
-    min_bound = hypergeometric_bound(n_points - 1, k)
-    normalized_similarity = (similarity - min_bound) / (1 - min_bound)
-    # normalized_similarity = stats.hypergeom.pmf(similarity * k, n_points, k, n_points-1)
-    return normalized_similarity
+__all__ = [
+    'hypergeometric_bound',
+    'mean_neighborhood_similarity_from_points',
+    'normalize_tas',
+    'resolve_k',
+]
 
 
 def nearest_neighbors(
@@ -44,8 +23,7 @@ def nearest_neighbors(
     metric='minkowski',
     n_jobs=1,
 ):
-    if isinstance(k, float):
-        k = int(k * x.shape[0])
+    k = resolve_k(k, x.shape[0])
     G = kneighbors_graph(
         x,
         k,

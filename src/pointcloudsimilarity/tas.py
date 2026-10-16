@@ -1,11 +1,8 @@
 import torch
 
 from .core_similarity import Similarity
-from .tas_core.tas_cpu import (
-    hypergeometric_bound,
-    mean_neighborhood_similarity_from_points,
-    normalize_tas,
-)
+from .tas_core.normalization import normalize_tas, resolve_k
+from .tas_core.tas_cpu import mean_neighborhood_similarity_from_points
 from .tas_core.tas_faiss import TASFAISS
 from .tas_core.tas_torch import compute_tas_pytorch_batched
 
@@ -46,15 +43,16 @@ class TASSimilarityCPU(Similarity):
         Returns:
         float: NNGS similarity between the two point clouds.
         """
+        k = resolve_k(self.k, pc1.shape[0])
         nngs = mean_neighborhood_similarity_from_points(
             pc1,
             pc2,
-            k=self.k,
+            k=k,
             n_jobs=self.n_jobs,
             metric=self.metric,
         )
         if self.normalize:
-            nngs = normalize_tas(nngs, pc1.shape[0], self.k)
+            nngs = normalize_tas(nngs, pc1.shape[0], k)
 
         return nngs
 
@@ -96,41 +94,23 @@ class TASSimilarityTorch(Similarity):
         """
         Compute TAS similarity.
         """
-        # Remove 1 because we don't consider self-neighbors.
-        N = pc1.shape[0] - 1
-
-        # Recalculate k if it was a float, for the bound formula
-        k_val = int(self.k * N) if isinstance(self.k, float) else self.k
-
-        # Trivial case: size of neighborhood matches the number of points.
-        # In this case, all neighborhoods are identical, hence similarity is 1 trivially.
-        if k_val >= N:
-            return 1.0
+        n_samples = pc1.shape[0]
+        k = resolve_k(self.k, n_samples)
 
         # Calculate raw NNGS using the PyTorch engine
         nngs_raw = compute_tas_pytorch_batched(
             pc1,
             pc2,
-            k=self.k,
+            k=k,
             batch_size=self.batch_size,
             device=self.device,
             only_intersection=self.only_intersection,
         )
 
         if self.normalize:
-            # Apply Normalization
-            # Notice that min_bound would only be 1 if k >= N, which is handled above.
-            min_bound = hypergeometric_bound(
-                N, k_val, only_intersection=self.only_intersection
+            return normalize_tas(
+                nngs_raw, n_samples, k, only_intersection=self.only_intersection
             )
-
-            if self.only_intersection:
-                max_bound = self.k
-            else:
-                max_bound = 1
-
-            nngs_normalized = (nngs_raw - min_bound) / (max_bound - min_bound)
-            return nngs_normalized
 
         return nngs_raw
 
@@ -149,7 +129,7 @@ class TASSimilarityFaiss(Similarity):
         TAS Similarity using FAISS backend.
 
         Parameters:
-        k (int): Number of neighbors.
+        k (int or float): Number of neighbors or fraction.
         approximate (bool): Use approximate search (IVF) or exact (Flat).
         metric (str): 'euclidean' or 'cosine'.
         batch_size (int): Chunk size for Jaccard calculation.
@@ -162,7 +142,6 @@ class TASSimilarityFaiss(Similarity):
         self.batch_size = batch_size
         self.gpu = gpu
         self.normalize = normalize
-        self.trained = False
         self.faiss_calculator = TASFAISS(
             approximate=self.approximate,
             metric=self.metric,
@@ -173,25 +152,18 @@ class TASSimilarityFaiss(Similarity):
         """
         Compute TAS similarity using FAISS.
         """
-        if not self.trained:
-            self.faiss_calculator.fit(pc1, pc2)
-            self.trained = True
+        n_samples = pc1.shape[0]
+        k = resolve_k(self.k, n_samples)
 
+        # Rebuild the indexes on every call: the same object may be reused
+        # on different point clouds.
+        self.faiss_calculator.fit(pc1, pc2)
         tas_raw = self.faiss_calculator(
-            k=self.k,
+            k=k,
             batch_size=self.batch_size,
         )
 
         if self.normalize:
-            N = pc1.shape[0]
-            k_val = self.k
-
-            min_bound = hypergeometric_bound(N, k_val)
-
-            if min_bound >= 1.0:
-                return 0.0
-
-            tas_normalized = (tas_raw - min_bound) / (1 - min_bound)
-            return tas_normalized
+            return normalize_tas(tas_raw, n_samples, k)
 
         return tas_raw

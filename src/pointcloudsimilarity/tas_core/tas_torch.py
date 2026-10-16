@@ -1,21 +1,6 @@
 import torch
 
-
-# --- Helper: The Mathematical Bound ---
-def hypergeometric_bound(n, k, only_intersection=False):
-    """
-    Expected Jaccard similarity between two random subsets of size k
-    drawn from a pool of size n.
-    """
-    if n <= 1 or k >= n:
-        return 0.0  # Edge cases
-    # Derived from Hypergeometric distribution mean for intersection size
-    # E[|A n B|] = k^2 / n
-    # E[J] approx E[Int] / (2k - E[Int])
-    if only_intersection:
-        return (k**2) / (n**2)
-    else:
-        return k / (2 * (n - 1) - k)
+from .normalization import resolve_k
 
 
 # --- Optimized Engine ---
@@ -36,16 +21,8 @@ def compute_tas_pytorch_batched(
     # 1. Setup
     n_samples = X.shape[0]
 
-    # Handle fractional k (e.g., 0.2 -> 20% of N)
-    if isinstance(k, float):
-        k = int(k * n_samples)
-
-    # Validation
-    if k >= n_samples:
-        k = n_samples - 1
-
-    if k < 1:
-        k = 1
+    # Handle fractional k (e.g., 0.2 -> 20% of N) and clamp to [1, N-1]
+    k = resolve_k(k, n_samples)
 
     # Move to GPU/Device
     # Assuming inputs are numpy or torch, convert to float32 tensor
@@ -109,7 +86,7 @@ def compute_tas_pytorch_batched(
         matches = idx_x.unsqueeze(2) == idx_y.unsqueeze(1)
         batch_intersections = matches.sum(dim=(1, 2)).float()
         if only_intersection:
-            unions = X_batch.shape[0]
+            unions = 1  # raw intersection size, normalized against k later
         else:
             unions = (2 * k) - batch_intersections
 
@@ -136,16 +113,8 @@ def compute_jaccards_torch(
     # 1. Setup
     n_samples = X.shape[0]
 
-    # Handle fractional k (e.g., 0.2 -> 20% of N)
-    if isinstance(k, float):
-        k = int(k * n_samples)
-
-    # Validation
-    if k >= n_samples:
-        k = n_samples - 1
-
-    if k < 1:
-        k = 1
+    # Handle fractional k (e.g., 0.2 -> 20% of N) and clamp to [1, N-1]
+    k = resolve_k(k, n_samples)
 
     # Search for k+1 because the point itself is index 0
     search_k = k + 1
