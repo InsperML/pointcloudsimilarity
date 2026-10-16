@@ -1,6 +1,4 @@
-import torch
-
-from .core_similarity import Similarity
+from .core_similarity import Similarity, resolve_device
 from .tas_core.normalization import normalize_tas, resolve_k
 from .tas_core.tas_cpu import mean_neighborhood_similarity_from_points
 from .tas_core.tas_faiss import TASFAISS
@@ -80,15 +78,7 @@ class TASSimilarityTorch(Similarity):
         self.batch_size = batch_size
         self.only_intersection = only_intersection
 
-        if device is None:
-            if torch.cuda.is_available():
-                self.device = 'cuda'
-            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                self.device = 'mps'
-            else:
-                self.device = 'cpu'
-        else:
-            self.device = device
+        self.device = resolve_device(device)
 
     def __call__(self, pc1, pc2, **kwargs):
         """

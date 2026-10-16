@@ -1,21 +1,21 @@
 from .cka import CKASimilarity
 from .gulp import GULPSimilarity
-from .procrustes import ProcrustesSimilarity
 from .gw_sim import GWSimilarity
-from .tas import TASSimilarityCPU, TASSimilarityFaiss, TASSimilarityTorch
+from .procrustes import ProcrustesSimilarity
 from .pwcca import PWCCASimilarity
 from .rtd import RTDSimilarity
+from .tas import TASSimilarityCPU, TASSimilarityFaiss, TASSimilarityTorch
 
 __all__ = [
     "CKASimilarity",
     "GULPSimilarity",
-    "ProcrustesSimilarity",
     "GWSimilarity",
+    "PWCCASimilarity",
+    "ProcrustesSimilarity",
+    "RTDSimilarity",
     "TASSimilarityCPU",
     "TASSimilarityFaiss",
-    "TASSimilarityTorch",
-    "PWCCASimilarity",
-    "RTDSimilarity"
+    "TASSimilarityTorch"
 ]
 
 available_metrics = {
