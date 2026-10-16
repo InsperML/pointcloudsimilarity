@@ -18,12 +18,15 @@ def _require_faiss():
 
 
 class TASFAISS:
-    def __init__(self, approximate=False, metric='cosine', gpu=True):
+    def __init__(self, approximate=False, metric='cosine', gpu=None):
         _require_faiss()
         assert metric in ['euclidean', 'cosine'], "Metric must be 'euclidean' or 'cosine'"
 
         self.approximate = approximate
         self.metric = metric
+        # Default to the GPU only if this FAISS build can see one (faiss-cpu cannot).
+        if gpu is None:
+            gpu = hasattr(faiss, 'get_num_gpus') and faiss.get_num_gpus() > 0
         self.gpu = gpu
     
     def __create_index(self, data, gpu):
@@ -101,9 +104,8 @@ class TASFAISS:
             all_idx_X.append(I_X)
             all_idx_Y.append(I_Y)
 
-        # Concatenate and remove first column (self)
-        idx_X = np.vstack(all_idx_X)[:, 1:]
-        idx_Y = np.vstack(all_idx_Y)[:, 1:]
+        idx_X = _drop_self(np.vstack(all_idx_X), k)
+        idx_Y = _drop_self(np.vstack(all_idx_Y), k)
 
         # Compute Jaccard Similarity
         device = 'cuda' if self.gpu and torch.cuda.is_available() else 'cpu'
@@ -119,3 +121,16 @@ class TASFAISS:
             total_jaccard += jaccards.sum().item()
 
         return total_jaccard / self.n_samples
+
+
+def _drop_self(indices, k):
+    """
+    Remove each query point from its own (k + 1)-neighbor row, by index.
+
+    Assuming the point comes back first fails for duplicate points. If the
+    point is missing from its row (exact ties), drop the farthest instead.
+    """
+    is_self = indices == np.arange(len(indices))[:, None]
+    keep = ~is_self
+    keep[~is_self.any(axis=1), -1] = False
+    return indices[keep].reshape(len(indices), k)
