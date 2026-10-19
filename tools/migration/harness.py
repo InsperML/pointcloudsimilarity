@@ -243,6 +243,10 @@ def targets(root):
         ),
         '01f_texts': lambda: texts_of_script(nb / '01f-gpts.py'),
         '04_texts': lambda: texts_of_script(nb / '04-quantization.py'),
+        # Not run by default: they need the GloVe models in ~/gensim-data
+        # (1.5 GB). 00 builds the cache that 01d reads, so run it first.
+        '00_glove_cache': lambda: run_script(nb / '00-load_gensim_glove.py'),
+        '01d_glove': lambda: run_script(nb / '01d-w2v_glove.py'),
     }
 
 

@@ -1,7 +1,9 @@
 import gensim.downloader as api
-import pickle
+from pathlib import Path
 import torch
-from pointcloudsimilarity.datasets import mix_with_noise
+from pointcloudsimilarity.datasets import (aligned_glove_vectors,
+                                           load_glove_twitter,
+                                           mix_with_noise)
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                TASSimilarityTorch,
@@ -37,6 +39,9 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Filled by 00-load_gensim_glove.py, or by the first run of this script.
+GLOVE_CACHE = Path(__file__).parent / 'glove_models'
+
 
 def sweep_model_similarity(X, Y):
     alphas = np.logspace(-1, 5, 50)
@@ -59,35 +64,21 @@ def sweep_model_similarity(X, Y):
 
 
 def glove_extract():
-    with open("glove_models.pkl", "rb") as f:
-        models = pickle.load(f)
-    model200 = models["model200"]
-    model100 = models["model100"]
-    model50 = models["model50"]
-    model25 = models["model25"]
-    print("Models loaded from glove_models.pkl")
-
-    model100.sort_by_descending_frequency()
-    all_vocab = list(model100.key_to_index)
-    #all_vocab = [ w for w in all_vocab if w.isalnum() ]
-    all_vocab = [w for w in all_vocab if w.isascii()]
-
-    for w in all_vocab[190000:191000]:
-        v200 = model200[w]
-        v100 = model100[w]
-        v50 = model50[w]
-        v25 = model25[w]
-        yield w, v200, v100, v50, v25
+    """Words 190000 to 191000 (by frequency in GloVe 100) in every GloVe model."""
+    models = {dim: load_glove_twitter(dim, cache_dir=GLOVE_CACHE)
+              for dim in (200, 100, 50, 25)}
+    print(f"Models loaded from {GLOVE_CACHE}")
+    return aligned_glove_vectors(models, start=190000, n_words=1000, reference=100)
 
 
 def glove_experiment_noise():
-    w, v200, v100, v50, v25 = zip(*glove_extract())
+    words, vectors = glove_extract()
     # Normalize each sample (row) to unit L2 norm
     alpha = 0.1
-    X200 = torch.Tensor(np.array(v200))
-    X100 = torch.Tensor(np.array(v100))
-    X50 = torch.Tensor(np.array(v50))
-    X25 = torch.Tensor(np.array(v25))
+    X200 = torch.Tensor(vectors[200])
+    X100 = torch.Tensor(vectors[100])
+    X50 = torch.Tensor(vectors[50])
+    X25 = torch.Tensor(vectors[25])
     #X = F.normalize(torch.tensor(v100), p=2, dim=1, eps=1e-12)
 
     alphas100, similarities_cka100, ks100, similarities100 = sweep_model_similarity(
@@ -136,10 +127,10 @@ def glove_experiment_noise():
 
 
 def glove_experiment_noise_sweep():
-    w, v200, v100, v50, v25 = zip(*glove_extract())
+    words, vectors = glove_extract()
     # Normalize each sample (row) to unit L2 norm
 
-    X = np.array(v25)
+    X = vectors[25]
 
     nngs = {}
     alphas = np.linspace(0, 1, 100)
@@ -168,7 +159,7 @@ def glove_experiment_noise_sweep():
 
 
 def glove_experiment():
-    w, v200, v100, v50, v25 = zip(*glove_extract())
+    words, vectors = glove_extract()
     # Normalize each sample (row) to unit L2 norm
 
     alphas, similarities_cka, ks, similarities = sweep_model_similarity(

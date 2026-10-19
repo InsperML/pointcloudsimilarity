@@ -30,5 +30,14 @@ python tools/migration/compare.py /tmp/pcs-baseline /tmp/pcs-candidate-out
 Each run takes about 4 minutes. Pass target names after the output directory to
 run only some of them (see `targets()` in `harness.py`).
 
-Not covered: `01d` (needs the GloVe models), `experiments_audio/vae.py` (needs
-the FMA data) and `experiments/analysis.py` (fails on import at `v1.0`).
+The GloVe targets are not in the default run, as they need the four GloVe
+Twitter models in `~/gensim-data` (1.5 GB, downloaded on first use). Run
+`00_glove_cache` first: it parses the models into the copy's cache, which
+takes about 10 minutes, and `01d_glove` then reads it.
+
+```bash
+tools/migration/run_baseline.sh /tmp/pcs-v1.0 /tmp/pcs-baseline-glove 00_glove_cache 01d_glove
+```
+
+Not covered: `experiments_audio/vae.py` (needs the FMA data) and
+`experiments/analysis.py` (fails on import at `v1.0`).

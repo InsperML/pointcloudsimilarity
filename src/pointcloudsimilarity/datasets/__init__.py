@@ -2,8 +2,8 @@
 Point clouds to compare: synthetic data with known geometric relations, and
 loaders for real data.
 
-The loaders import their dependencies (Hugging Face datasets, ...) only when
-called; install them with `uv sync --extra data`.
+The loaders import their dependencies (Hugging Face datasets, gensim) only
+when called; install them with `uv sync --extra data`.
 """
 
 from .synthetic import (
@@ -16,10 +16,14 @@ from .synthetic import (
     simplex_centers,
 )
 from .text import load_text_dataset
+from .word_vectors import GLOVE_TWITTER_DIMS, aligned_glove_vectors, load_glove_twitter
 
 __all__ = [
+    'GLOVE_TWITTER_DIMS',
+    'aligned_glove_vectors',
     'equidistant_blobs',
     'jittered_blobs',
+    'load_glove_twitter',
     'load_text_dataset',
     'mix_with_noise',
     'noise_pair',

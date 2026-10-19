@@ -9,5 +9,6 @@ wheels/
 # Virtual environments
 .venv
 *.png
-*.pth 
+*.pth
 notebooks/gensim_view.ipynb
+notebooks/glove_models/

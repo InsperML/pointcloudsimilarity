@@ -2350,6 +2350,7 @@ dependencies = [
 [package.optional-dependencies]
 data = [
     { name = "datasets" },
+    { name = "gensim" },
 ]
 faiss = [
     { name = "faiss-cpu", marker = "platform_machine != 'x86_64' or sys_platform != 'linux'" },
@@ -2391,6 +2392,7 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'notebooks'", specifier = ">=4.4.1" },
     { name = "faiss-cpu", marker = "(platform_machine != 'x86_64' and extra == 'faiss') or (sys_platform != 'linux' and extra == 'faiss')", specifier = ">=1.13.0" },
     { name = "faiss-gpu-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'faiss'", specifier = ">=1.13.0" },
+    { name = "gensim", marker = "extra == 'data'", specifier = ">=4.4.0" },
     { name = "gensim", marker = "extra == 'notebooks'", specifier = ">=4.4.0" },
     { name = "insperdatasets", marker = "extra == 'notebooks'", git = "https://github.com/InsperML/insperdatasets.git" },
     { name = "numpy", specifier = ">=2.3.4" },

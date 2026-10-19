@@ -26,6 +26,7 @@ rtd = [
 ]
 data = [
     "datasets>=4.4.1",
+    "gensim>=4.4.0",
 ]
 notebooks = [
     "accelerate>=1.12.0",

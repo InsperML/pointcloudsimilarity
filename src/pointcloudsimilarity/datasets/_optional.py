@@ -11,7 +11,8 @@ def import_optional(module, needed_by, extra='data'):
     try:
         return importlib.import_module(module)
     except ImportError as e:
+        package = module.partition('.')[0]
         raise ImportError(
-            f"{needed_by} needs the '{module}' package. Install it with "
+            f"{needed_by} needs the '{package}' package. Install it with "
             f'`uv sync --extra {extra}` (or `pip install pointcloudsimilarity[{extra}]`).'
         ) from e
