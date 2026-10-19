@@ -170,16 +170,18 @@ def texts_of_script(path):
 
 
 def texts_of_ijcnn_02(path):
-    """ijcnn/02 runs three datasets; record each get_dataset result."""
+    """ijcnn/02 runs three datasets; record the texts and labels each one loads."""
     module = load_module(path)
-    original_get_dataset = module.get_dataset
+    # v1.0 defines get_dataset; the refactor imports load_text_dataset. Their
+    # arguments differ, so only what they return is recorded.
+    loader = 'get_dataset' if hasattr(module, 'get_dataset') else 'load_text_dataset'
+    original_loader = getattr(module, loader)
 
-    def get_dataset(*args, **kwargs):
-        texts, labels = original_get_dataset(*args, **kwargs)
+    def load_texts(*args, **kwargs):
+        texts, labels = original_loader(*args, **kwargs)
         RECORDS.append(
             {
-                'call': 'get_dataset',
-                'args': [list(args), kwargs],
+                'call': 'load_texts',
                 'n': len(texts),
                 'texts': digest_json(texts),
                 'labels': digest_json([int(v) for v in labels]),
@@ -187,7 +189,7 @@ def texts_of_ijcnn_02(path):
         )
         return texts, labels
 
-    module.get_dataset = get_dataset
+    setattr(module, loader, load_texts)
     sys.modules['lib_get_embeddings'].get_bert_embeddings = capture_texts
     original_experiment = module.similarities_model_vs_finetuning
 

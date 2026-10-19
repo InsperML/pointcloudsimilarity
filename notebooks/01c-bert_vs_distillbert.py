@@ -1,7 +1,6 @@
 import time
 from typing import DefaultDict
 from transformers import AutoModel, AutoTokenizer
-from datasets import load_dataset
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +10,7 @@ from tqdm import tqdm
 import torch
 
 import pointcloudsimilarity.similarities as pcsim
+from pointcloudsimilarity.datasets import load_text_dataset
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                tas_spectrum,
@@ -137,18 +137,13 @@ def get_bert_embeddings(model_name, texts, max_samples=2000):
 def model_vs_model_experiment():
     N_SAMPLES = 1000 
     max_samples = N_SAMPLES
-    ds = load_dataset("wikimedia/wikipedia", "20231101.en", split="train", streaming=True)
-    texts = []
-    for i, article in enumerate(ds.take(N_SAMPLES*10)):
-        texts.append(article['text'])
-    
-    # Randomly select N_SAMPLES texts
-    rng = np.random.default_rng(1234)
-    if len(texts) > N_SAMPLES:
-        idx = rng.choice(len(texts), size=N_SAMPLES, replace=False)
-        texts = [texts[i] for i in idx]
-    else:
-        texts = texts[:N_SAMPLES]
+    # N_SAMPLES of the first 10 * N_SAMPLES articles
+    texts, _ = load_text_dataset("wikimedia/wikipedia",
+                                 config="20231101.en",
+                                 streaming=True,
+                                 pool_size=N_SAMPLES * 10,
+                                 n_samples=N_SAMPLES,
+                                 seed=1234)
       
     # Extract Teacher (BERT) and Student (DistilBERT)
     # N=2000 is enough to see topology, but 5000 is better if you have time.

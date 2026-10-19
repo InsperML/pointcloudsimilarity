@@ -1,7 +1,6 @@
 # import time
 # from typing import DefaultDict
 # from transformers import AutoModel, AutoTokenizer, AutoModelForSequenceClassification
-from datasets import load_dataset
 # from transformers import BitsAndBytesConfig
 import lib_get_embeddings as lib_emb
 import matplotlib.pyplot as plt
@@ -13,6 +12,7 @@ import torch
 import pandas as pd
 
 # import pointcloudsimilarity.similarities as pcsim
+from pointcloudsimilarity.datasets import load_text_dataset
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                TASSimilarityTorch,
@@ -65,29 +65,6 @@ def sweep_model_similarity(X, Y):
     return alphas, similarities_cka, ks, similarities_nngs
 
 
-def get_dataset(dataset_name,
-                split="train",
-                column_X="text",
-                column_Y="label",
-                n_samples=1000):
-    print(f"Loading dataset {dataset_name}...")
-    ds = load_dataset(dataset_name, split=split, streaming=False)
-    print(f"Downloaded dataset {dataset_name} with {len(ds)} samples.")
-    texts = [article[column_X] for article in ds]
-    ans = [article[column_Y] for article in ds]
-
-    rng = np.random.default_rng(12345)
-    print(f"Loaded {len(texts)} samples.")
-    if len(texts) > n_samples:
-        idx = rng.choice(len(texts), size=n_samples, replace=False)
-        texts = [texts[i] for i in idx]
-        ans = [ans[i] for i in idx]
-    else:
-        texts = texts[:n_samples]
-        ans = ans[:n_samples]
-    return texts, ans
-
-
 def similarities_model_vs_finetuning(dataset='imdb',
                                      column_X="sentence",
                                      column_Y="label",
@@ -98,11 +75,12 @@ def similarities_model_vs_finetuning(dataset='imdb',
     max_samples = N_SAMPLES
     print("Loading dataset...")
     #ds = load_dataset("wikimedia/wikipedia", "20231101.en", split="train", streaming=True)
-    texts, labels = get_dataset(dataset,
-                                column_X=column_X,
-                                column_Y=column_Y,
-                                n_samples=N_SAMPLES,
-                                split=split)
+    texts, labels = load_text_dataset(dataset,
+                                      split=split,
+                                      text_column=column_X,
+                                      label_column=column_Y,
+                                      n_samples=N_SAMPLES,
+                                      seed=12345)
     dataset_name = dataset.split('/')[-1].replace('_', '')
     print(f"Loaded {len(texts)} samples.")
 

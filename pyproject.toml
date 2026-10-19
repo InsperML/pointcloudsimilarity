@@ -24,6 +24,9 @@ rtd = [
     "ripserplusplus",
     "rtd",
 ]
+data = [
+    "datasets>=4.4.1",
+]
 notebooks = [
     "accelerate>=1.12.0",
     "bitsandbytes>=0.48.2",
