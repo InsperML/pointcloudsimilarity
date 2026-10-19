@@ -4,8 +4,9 @@ Synthetic point clouds with known geometric relations.
 The paired generators return (X, Y): the same points before and after a
 controlled change. All generators take scikit-learn's random_state: None draws
 from NumPy's global random state, in the order the notebooks drew before these
-functions moved here, so np.random.seed() reproduces their data exactly; an int
-or np.random.RandomState leaves the global state untouched.
+functions moved here, so np.random.seed() reproduces their data exactly (see
+shuffled_blobs for the one exception); an int or np.random.RandomState leaves
+the global state untouched.
 """
 
 import numpy as np
@@ -64,11 +65,15 @@ def shuffled_blobs(n_samples, centers, cluster_std, random_state=None):
     Gaussian blobs X, and Y with the blobs moved to each other's centers.
 
     Every point keeps its offset from its blob's center, so each blob's internal
-    neighborhoods are unchanged while the blobs trade places.
+    neighborhoods are unchanged while the blobs trade places. No blob keeps its
+    own center: the permutation is drawn again until every blob moves. So with
+    random_state=None this draws what the v1.0 notebook code drew only when that
+    code's first permutation already moved every blob, as it does in ijcnn/01.
 
     Parameters:
     n_samples (int): Number of points, a multiple of the number of centers.
-    centers (np.ndarray): Blob centers of shape (n_centers, n_features).
+    centers (np.ndarray): Blob centers of shape (n_centers, n_features), at
+        least 2.
     cluster_std (float): Standard deviation of each blob.
     random_state (None, int or np.random.RandomState): See the module docstring.
 
@@ -79,13 +84,19 @@ def shuffled_blobs(n_samples, centers, cluster_std, random_state=None):
     rng = check_random_state(random_state)
     centers = np.asarray(centers)
     n_centers, n_features = centers.shape
+    if n_centers < 2:
+        raise ValueError('shuffled_blobs needs at least 2 centers to move the blobs.')
     per_center, remainder = divmod(n_samples, n_centers)
     if remainder:
         raise ValueError(
             f'n_samples ({n_samples}) must be a multiple of the number of '
             f'centers ({n_centers}).'
         )
-    shuffled = rng.permutation(centers)
+    # Permuting indices draws exactly what rng.permutation(centers) did.
+    order = rng.permutation(n_centers)
+    while np.any(order == np.arange(n_centers)):
+        order = rng.permutation(n_centers)
+    shuffled = centers[order]
     offsets = [
         rng.normal(scale=cluster_std, size=(per_center, n_features))
         for _ in range(n_centers)

@@ -147,8 +147,23 @@ def test_jittered_blobs_matches_v1(seed, N, D, centers, blob_std, noise_std):
     )
 
 
-@pytest.mark.parametrize('seed', [1, 7, 1234])
+def _first_draw_moves_every_blob(seed, n_centers):
+    order = np.random.RandomState(seed).permutation(n_centers)
+    return not (order == np.arange(n_centers)).any()
+
+
+def _destinations(X, Y, centers):
+    """The index of the center each blob of shuffled_blobs moved to."""
+    shifts = (Y - X).reshape(len(centers), -1, centers.shape[1])[:, 0]
+    return [
+        int(np.argmin(np.linalg.norm(centers - c, axis=1))) for c in shifts + centers
+    ]
+
+
+# Seed 1 is ijcnn/01's. With these seeds the first draw already moves every blob.
+@pytest.mark.parametrize('seed', [1, 2, 9])
 def test_shuffled_blobs_matches_v1_after_reseeding(seed):
+    assert _first_draw_moves_every_blob(seed, len(CENTERS))
     # v1.0 reseeded the global state with random_state. Callers that need its
     # exact data, like ijcnn/01, now call np.random.seed() themselves.
     expected = _v1_shuffled_blobs(500, 10, CENTERS, 0.1, random_state=seed)
@@ -157,6 +172,32 @@ def test_shuffled_blobs_matches_v1_after_reseeding(seed):
     actual = datasets.shuffled_blobs(500, CENTERS, 0.1)
     _assert_arrays_equal(expected, actual)
     _assert_same_state(expected_state, np.random.get_state())
+
+
+# With these seeds the first draw leaves a blob at its own center, as v1.0 did.
+@pytest.mark.parametrize('seed', [3, 4, 7])
+def test_shuffled_blobs_redraws_until_every_blob_moves(seed):
+    assert not _first_draw_moves_every_blob(seed, len(CENTERS))
+    _, v1_Y = _v1_shuffled_blobs(500, 10, CENTERS, 0.1, random_state=seed)
+    np.random.seed(seed)
+    X, Y = datasets.shuffled_blobs(500, CENTERS, 0.1)
+    assert not np.array_equal(Y, v1_Y)
+    assert all(d != i for i, d in enumerate(_destinations(X, Y, CENTERS)))
+
+
+@pytest.mark.parametrize('n_centers', [2, 3, 5])
+def test_shuffled_blobs_never_leaves_a_blob_in_place(n_centers):
+    centers = np.random.default_rng(n_centers).normal(0, 5, size=(n_centers, 4))
+    for seed in range(100):
+        X, Y = datasets.shuffled_blobs(10 * n_centers, centers, 0.1, random_state=seed)
+        destinations = _destinations(X, Y, centers)
+        assert sorted(destinations) == list(range(n_centers))
+        assert all(d != i for i, d in enumerate(destinations))
+
+
+def test_shuffled_blobs_needs_two_centers():
+    with pytest.raises(ValueError, match='at least 2 centers'):
+        datasets.shuffled_blobs(10, CENTERS[:1], 0.1)
 
 
 @pytest.mark.parametrize('seed', SEEDS)
