@@ -1,3 +1,5 @@
+import math
+
 import torch
 
 from .core_similarity import Similarity, resolve_device
@@ -18,7 +20,15 @@ class CKASimilarity(Similarity):
 
         Parameters:
         kernel (str): 'linear' or 'rbf'.
-        sigma (float): Bandwidth for RBF. If None, estimated via median heuristic.
+        sigma (float): Bandwidth for RBF, shared by both point clouds. This fixed
+            bandwidth is not part of Kornblith et al. (2019) and makes the result
+            depend on each cloud's scale.
+            If None, each cloud gets its own bandwidth as in Kornblith et al.
+            (2019) and their reference code: sigma^2 = scale_by_alpha^2 times the
+            initial_quantile (default: median) of that cloud's n x n squared
+            distances, diagonal included.
+        scale_by_alpha (float): Fraction of the median distance used as the
+            bandwidth (the paper reports 0.2, 0.4 and 0.8). None means 1.
         device (str): 'cuda', 'cpu', or 'mps'. Auto-detected if None.
         """
         assert kernel in ['linear', 'rbf'], "Kernel must be 'linear' or 'rbf'"
@@ -54,24 +64,19 @@ class CKASimilarity(Similarity):
             # Note: This WILL OOM on large N (e.g., N > 30k on 24GB VRAM)
             # This limitation is part of your argument against CKA.
 
-            # Estimate Sigma if needed (using a subset to save time)
-            sigma = self.sigma
-            if sigma is None:
-                # Combine a subset of X and Y to estimate sigma
-                # Algorithm: calculate pairwise distances on a subset, get median,
-                # multiply by alpha. In the original paper, alpha \in {0.8, 0.4, 0.2}
-                subset_size = min(2000, X.shape[0])
-                idx = torch.randperm(X.shape[0])[:subset_size]
-                X_sub = X[idx]
-                # Y_sub = Y[idx]
-                # combined = torch.cat([X_sub, Y_sub], dim=0)
-                sigma = estimate_sigma_torch(X_sub, q=self.initial_quantile)
+            sigma_x = sigma_y = self.sigma
+            if self.sigma is None:
+                # Each cloud's bandwidth comes from its own pairwise distances, so
+                # the result is symmetric and invariant to scaling either cloud.
+                sigma_x = estimate_sigma_torch(X, q=self.initial_quantile)
+                sigma_y = estimate_sigma_torch(Y, q=self.initial_quantile)
                 if label is not None:
-                    print(f'Label: {label}, Estimated sigma: {sigma}')
+                    print(f'Label: {label}, Estimated sigmas: {sigma_x}, {sigma_y}')
                 if self.scale_by_alpha is not None:
-                    sigma *= self.scale_by_alpha
+                    sigma_x *= self.scale_by_alpha
+                    sigma_y *= self.scale_by_alpha
 
-            return rbf_cka_gpu(X, Y, sigma, self.scale_by_dim)
+            return rbf_cka_gpu(X, Y, sigma_x, self.scale_by_dim, sigma_y=sigma_y)
 
 
 def linear_cka_optimized(X, Y, threshold=1e-16):
@@ -106,28 +111,39 @@ def linear_cka_optimized(X, Y, threshold=1e-16):
     return (numerator / denom).item()
 
 
-def rbf_cka_gpu(X, Y, sigma, scale_by_dim=False, threshold=1e-16):
+def rbf_cka_gpu(X, Y, sigma, scale_by_dim=False, threshold=1e-16, sigma_y=None):
     """
     Computes RBF CKA on GPU.
     Complexity: O(N^2).
     Requires full Gram Matrix computation.
+
+    sigma is the bandwidth for X; sigma_y the one for Y (defaults to sigma).
     """
-    # 1. Compute Gram Matrices (Kernel Matrices)
-    # torch.cdist computes euclidean distance
+    sigma_x = sigma
+    sigma_y = sigma if sigma_y is None else sigma_y
     if scale_by_dim:
-        sigma = sigma * X.shape[1]
-    K = torch.exp(
+        sigma_x = sigma_x * X.shape[1]
+        sigma_y = sigma_y * Y.shape[1]
+
+    # 1. Compute Gram Matrices (Kernel Matrices), minus 1.
+    # Double centering removes constants, so K - 1 centers to the same matrix as
+    # K, and expm1 keeps the precision that exp loses when sigma is large and
+    # every entry of K is close to 1.
+    # torch.cdist computes euclidean distance
+    K = torch.expm1(
         -torch.cdist(X, X, compute_mode='donot_use_mm_for_euclid_dist').pow(2)
-        / (2 * sigma**2)
+        / (2 * sigma_x**2)
     )
-    L = torch.exp(
+    L = torch.expm1(
         -torch.cdist(Y, Y, compute_mode='donot_use_mm_for_euclid_dist').pow(2)
-        / (2 * sigma**2)
+        / (2 * sigma_y**2)
     )
 
     # 2. Center the Kernels (Double Centering: HKH)
-    K_c = center_gram_matrix(K)
-    L_c = center_gram_matrix(L)
+    # CKA does not change when a kernel is rescaled; scaling each to a peak of 1
+    # keeps the sums of squares below from underflowing for large sigma.
+    K_c = _scale_to_unit_peak(center_gram_matrix(K))
+    L_c = _scale_to_unit_peak(center_gram_matrix(L))
 
     # 3. Compute CKA
     # Trace(K_c @ L_c) is technically sum(elementwise_mult(K_c, L_c.T))
@@ -150,31 +166,34 @@ def center_gram_matrix(K):
     Applies double centering to a kernel matrix K.
     K_c = K - row_mean - col_mean + grand_mean
     """
-    # Calculate means
     row_means = K.mean(dim=1, keepdim=True)  # (N, 1)
+    col_means = K.mean(dim=0, keepdim=True)  # (1, N)
+    return K - row_means - col_means + K.mean()
 
-    # Broadcast subtraction
-    K_c = K - row_means
-    return K_c
+
+def _scale_to_unit_peak(M):
+    peak = M.abs().max()
+    return M / peak if peak > 0 else M
 
 
 def estimate_sigma_torch(data, q=0.5):
     """
-    Estimates sigma using the median distance heuristic on GPU.
+    Bandwidth heuristic of Kornblith et al. (2019), as in their reference code
+    (gram_rbf): the square root of the q-quantile (default: median) of the full
+    n x n squared-distance matrix, diagonal zeros included.
     """
-    # Calculate pairwise distances (Squared Euclidean)
-    # Note: data should be a subset if N is huge
-    dists = torch.pdist(data).pow(2)
+    sq_dists = torch.cdist(data, data, compute_mode='donot_use_mm_for_euclid_dist').pow(2)
+    return math.sqrt(_quantile(sq_dists, q))
 
-    # Median
-    median_dist = dists.quantile(q)
 
-    # Sigma = sqrt(median / 2) * alpha?
-    # Standard heuristic is often just sqrt(median) or similar.
-    # Your original code used: sigma = median_dist * alpha (on SQRT dists usually)
-    # Let's match your logic:
-    # Your old code: pairwise_distances(metric='sqeuclidean') -> median -> * alpha
-    # rbf_kernel: exp(-dist_sq / (2*sigma^2))
-
-    sigma = torch.sqrt(median_dist)  # This is a standard heuristic
-    return sigma.item()
+def _quantile(values, q):
+    """
+    np.quantile's default (linear interpolation) for a tensor of any size;
+    torch.quantile rejects tensors with more than 2**24 elements.
+    """
+    flat = values.flatten()
+    position = q * (flat.numel() - 1)
+    lower, upper = math.floor(position), math.ceil(position)
+    v_lower = flat.kthvalue(lower + 1).values.item()
+    v_upper = flat.kthvalue(upper + 1).values.item() if upper != lower else v_lower
+    return v_lower + (position - lower) * (v_upper - v_lower)
