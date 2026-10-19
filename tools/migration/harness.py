@@ -228,6 +228,69 @@ def experiments_data(root):
         )
 
 
+def _catalogue_rows(dataset):
+    """The rows of the full dataset that the items of nested Subsets come from."""
+    if isinstance(dataset, torch.utils.data.Subset):
+        rows = _catalogue_rows(dataset.dataset)
+        return [rows[i] for i in dataset.indices]
+    return list(range(len(dataset)))
+
+
+def _first_batch_quietly(loader):
+    """
+    The loader's first batch. Its workers print an error per missing file, in
+    no fixed order, so their stdout goes to /dev/null.
+    """
+    sys.stdout.flush()
+    saved, devnull = os.dup(1), os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)
+    try:
+        return next(iter(loader))
+    finally:
+        os.dup2(saved, 1)
+        os.close(saved)
+        os.close(devnull)
+
+
+def vae_data(path, debug):
+    """
+    The tracks vae.py trains and validates on, and each loader's first batch.
+
+    FMA_DIR names the FMA directory, since v1.0 hard-codes another machine's.
+    """
+    import insperdatasets.audio.fma as fma
+
+    fma_dir = os.environ['FMA_DIR']
+    original_init = fma.FMADataset.__init__
+
+    def init(self, data_dir, loader_func):
+        original_init(self, fma_dir, loader_func)
+
+    fma.FMADataset.__init__ = init
+    module = load_module(path)
+    module.__dict__['__DEBUG'] = debug
+
+    def train_vae(model, train_loader, val_loader, **kwargs):
+        for name, loader in [('train', train_loader), ('val', val_loader)]:
+            audio, mask, labels = _first_batch_quietly(loader)
+            rows = _catalogue_rows(loader.dataset)
+            RECORDS.append(
+                {
+                    'call': f'{name}_loader',
+                    'n': len(rows),
+                    'rows': digest(np.array(rows)),
+                    'shapes': None if audio is None else [list(audio.shape)],
+                    'x': None if audio is None else digest(audio),
+                    'mask': None if mask is None else digest(mask),
+                    'labels': digest_json([str(label) for label in labels]),
+                }
+            )
+
+    module.train_vae = train_vae
+    seed_everything(0)
+    module.main()
+
+
 def targets(root):
     nb = root / 'notebooks'
     return {
@@ -247,6 +310,9 @@ def targets(root):
         # (1.5 GB). 00 builds the cache that 01d reads, so run it first.
         '00_glove_cache': lambda: run_script(nb / '00-load_gensim_glove.py'),
         '01d_glove': lambda: run_script(nb / '01d-w2v_glove.py'),
+        # Not run by default: they need the FMA data, in the directory FMA_DIR names.
+        'vae_debug': lambda: vae_data(nb / 'experiments_audio' / 'vae.py', debug=True),
+        'vae_full': lambda: vae_data(nb / 'experiments_audio' / 'vae.py', debug=False),
     }
 
 

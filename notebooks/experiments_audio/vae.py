@@ -1,8 +1,7 @@
 import math
+import os
 import time
-from functools import partial
 
-import insperdatasets.audio.fma as fma
 import insperdatasets.audio.utils as audio_utils
 import torch
 import torch.nn.functional as F
@@ -11,9 +10,14 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from pointcloudsimilarity.datasets import load_fma
+
 # Set to False for full training, True for quick tests on a subset of data.
 __DEBUG = True
 __NUM_SAMPLES_DEBUG = 10
+
+# The FMA directory, holding fma_metadata/ and fma_wav16k/.
+FMA_DIR = os.environ.get('FMA_DIR', '/mnt/data3/fma/fma')
 
 
 class ConvolutionalVAE(nn.Module):
@@ -252,33 +256,17 @@ def main():
     SAMPLE_RATE_HZ = 16000
     N_SAMPLES = AUDIO_DURATION_SEC * SAMPLE_RATE_HZ
 
-    dataset = fma.FMADataset(
-        data_dir='/mnt/data3/fma/fma',
-        loader_func=partial(
-            audio_utils.load_audio,
-            crop='random',
-            t_len=N_SAMPLES,
-        ),
+    # Random 3 s clips; 80% of the tracks for training, 20% for validation.
+    train_dataset, val_dataset = load_fma(
+        FMA_DIR,
+        clip_samples=N_SAMPLES,
+        max_tracks=__NUM_SAMPLES_DEBUG if __DEBUG else None,
     )
-
-    # Downsample to 1/100 for faster tests
+    n_tracks = len(train_dataset) + len(val_dataset)
     if __DEBUG:
-        num_samples = min(__NUM_SAMPLES_DEBUG, len(dataset))
-        print(
-            f'Running in DEBUG mode: using only {num_samples} samples'
-            f'({num_samples / len(dataset):.2%}) of the dataset for quick tests.'
-        )
-        dataset = torch.utils.data.Subset(dataset, range(0, num_samples))
+        print(f'Running in DEBUG mode: using only the first {n_tracks} tracks for quick tests.')
 
-    print(f'We have {len(dataset)} tracks in the dataset.')
-
-    # Split dataset into train (80%) and validation (20%)
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset,
-        [train_size, val_size],
-    )
+    print(f'We have {n_tracks} tracks in the dataset.')
 
     train_dataloader = DataLoader(
         train_dataset,

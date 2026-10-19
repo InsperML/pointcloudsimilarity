@@ -39,5 +39,15 @@ takes about 10 minutes, and `01d_glove` then reads it.
 tools/migration/run_baseline.sh /tmp/pcs-v1.0 /tmp/pcs-baseline-glove 00_glove_cache 01d_glove
 ```
 
-Not covered: `experiments_audio/vae.py` (needs the FMA data) and
-`experiments/analysis.py` (fails on import at `v1.0`).
+The `vae.py` targets are not in the default run either: they need the FMA data,
+in the directory `FMA_DIR` names (`v1.0` hard-codes another machine's path, so
+the harness replaces it). `vae_debug` runs the script as committed, on its
+first 10 tracks; `vae_full` sets `__DEBUG = False`. Both record the tracks in
+each split and the first batch of each loader. The first full run reads many
+files and takes about 5 minutes; later ones take seconds.
+
+```bash
+FMA_DIR=/mnt/data/fma tools/migration/run_baseline.sh /tmp/pcs-v1.0 /tmp/pcs-baseline-vae vae_debug vae_full
+```
+
+Not covered: `experiments/analysis.py` (fails on import at `v1.0`).

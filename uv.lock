@@ -2348,6 +2348,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+audio = [
+    { name = "insperdatasets" },
+]
 data = [
     { name = "datasets" },
     { name = "gensim" },
@@ -2394,6 +2397,7 @@ requires-dist = [
     { name = "faiss-gpu-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'faiss'", specifier = ">=1.13.0" },
     { name = "gensim", marker = "extra == 'data'", specifier = ">=4.4.0" },
     { name = "gensim", marker = "extra == 'notebooks'", specifier = ">=4.4.0" },
+    { name = "insperdatasets", marker = "extra == 'audio'", git = "https://github.com/InsperML/insperdatasets.git" },
     { name = "insperdatasets", marker = "extra == 'notebooks'", git = "https://github.com/InsperML/insperdatasets.git" },
     { name = "numpy", specifier = ">=2.3.4" },
     { name = "pot", specifier = ">=0.9.6.post1" },
@@ -2411,7 +2415,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'notebooks'", specifier = ">=4.57.3" },
     { name = "umap-learn", marker = "extra == 'notebooks'", specifier = ">=0.5.9.post2" },
 ]
-provides-extras = ["faiss", "rtd", "data", "notebooks"]
+provides-extras = ["faiss", "rtd", "data", "audio", "notebooks"]
 
 [package.metadata.requires-dev]
 dev = [

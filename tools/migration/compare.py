@@ -26,6 +26,8 @@ EXACT_KEYS = (
     'ks',
     'texts',
     'labels',
+    'rows',
+    'mask',
 )
 
 
