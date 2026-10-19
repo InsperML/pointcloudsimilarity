@@ -3,11 +3,11 @@ from typing import DefaultDict
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 
 import pointcloudsimilarity.similarities as pcsim
+from pointcloudsimilarity.datasets import jittered_blobs, shuffled_blobs
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                tas_spectrum,
@@ -15,41 +15,6 @@ from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                PWCCASimilarity)
 
 
-def noisy_blobs(N, D, n_blobs=2, distance=20.0, cluster_std=0.1):
-
-    centers = np.random.uniform(-distance, distance, size=(n_blobs, D))
-
-    X, _ = make_blobs(n_samples=N * len(centers), 
-                      n_features=centers.shape[1], 
-                      centers=centers, 
-                      cluster_std=cluster_std, 
-                      random_state=42)
-
-    # Noisy blobs
-    Y = X + np.random.randn(*X.shape) * (cluster_std * 2.0)
-    return X, Y
-
-def shuffled_blobs(N, D, n_blobs=2, distance=20.0, cluster_std=0.1):
-
-    centers = np.random.uniform(-distance, distance, size=(n_blobs, D))
-
-    X, _ = make_blobs(n_samples=N * len(centers), 
-                      n_features=centers.shape[1], 
-                      centers=centers, 
-                      cluster_std=cluster_std, 
-                      random_state=42)
-
-
-    perm = np.random.permutation(len(centers))
-    centers_shuffled = centers[perm]
-    
-    Y, _ = make_blobs(n_samples=N * len(centers_shuffled), 
-                      n_features=centers_shuffled.shape[1], 
-                      centers=centers_shuffled, 
-                      cluster_std=cluster_std, 
-                      random_state=42)
-    return X, Y
-    
 def sweep_model_similarity(X, Y):
     alphas = np.logspace(-1, 5, 50)
     similarities_cka = []
@@ -69,11 +34,14 @@ def sweep_model_similarity(X, Y):
     return alphas, similarities_cka, ks, similarities_nngs
 
 
-def blob_experiment(N, D, n_blobs=1, distance=2.0):
-    X, Y = noisy_blobs(N, D, n_blobs=n_blobs, distance=distance)
+def blob_experiment(N, D, n_blobs=1, distance=2.0, cluster_std=0.1):
+    # N points per blob, around centers drawn uniformly from [-distance, distance]^D
+    centers = np.random.uniform(-distance, distance, size=(n_blobs, D))
+    X, Y = jittered_blobs(N * n_blobs, D, centers, cluster_std, 2 * cluster_std)
     alphas, similarities_cka, ks, similarities_nngs = sweep_model_similarity(X, Y)
-    
-    X, Y = shuffled_blobs(N, D, n_blobs=n_blobs, distance=distance)
+
+    centers = np.random.uniform(-distance, distance, size=(n_blobs, D))
+    X, Y = shuffled_blobs(N * n_blobs, centers, cluster_std)
     alphas_shuf, similarities_cka_shuf, ks_shuf, similarities_nngs_shuf = sweep_model_similarity(X, Y)
      
 

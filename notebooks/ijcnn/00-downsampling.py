@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import toml
-from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 
+from pointcloudsimilarity.datasets import jittered_blobs
 from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
@@ -24,29 +24,17 @@ script_dir = Path(__file__).parent
 config = toml.load(script_dir / 'settings.toml')['figures']
 
 
-def blobs_with_noise(N, D, centers, blob_std, noise_std):
-    X, _ = make_blobs(
-        n_samples=N,
-        n_features=D,
-        centers=centers,
-        cluster_std=blob_std,
-    )
-    noise = np.random.normal(scale=noise_std, size=(N, D))
-    Y = X + noise
-    return X, Y
-
-
 def nngs_sweeep(X, Y):
     ks = np.arange(1, X.shape[0] - 1, 1)
     results = list(tas_spectrum(X, Y, ks, batch_size=200))
     return results, np.array(ks) / X.shape[0]
 
 if __name__ == '__main__':
-    X, Y = blobs_with_noise(
-        N=1000,
-        D=100,
+    X, Y = jittered_blobs(
+        n_samples=1000,
+        n_features=100,
         centers=5,
-        blob_std=0.5,
+        cluster_std=0.5,
         noise_std=0.5,
     )
     

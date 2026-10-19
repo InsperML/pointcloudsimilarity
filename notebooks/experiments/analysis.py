@@ -4,11 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from itertools import product
 from pathlib import Path
-from sklearn.datasets import make_blobs
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix
 
-from training import BLOCK_CLASS_MAP, MLPNetwork, make_equidistant_centers
+from model_ import BLOCK_CLASS_MAP, MLPNetwork
+from pointcloudsimilarity.datasets import equidistant_blobs
 
 script_dir = Path(__file__).parent
 config = toml.load(script_dir / "settings.toml")['figures']
@@ -70,13 +70,9 @@ def iter_experiments():
         model1.eval()
         model2.eval()
 
-        centers = make_equidistant_centers(n_classes, n_features, scale=center_scale)
-        X_, y_ = make_blobs(
-            n_samples=n_samples,
-            n_features=n_features,
-            centers=centers,
-            cluster_std=cluster_std,
-            random_state=42,
+        # The data training.py used (see dataset_.make_dataloader).
+        X_, y_ = equidistant_blobs(
+            n_samples, n_features, n_classes, cluster_std, center_scale, random_state=42
         )
         X_tensor = torch.tensor(X_, dtype=torch.float32)
 

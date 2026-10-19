@@ -1,3 +1,4 @@
+from pointcloudsimilarity.datasets import mix_with_noise
 from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
@@ -32,12 +33,11 @@ my_metrics = {
 
 def operate_on_point_cloud(X, metrics, c=None):
     similarities = DefaultDict(list)
-    N, D = X.shape
     alpha_values = np.arange(0, 1.0, 0.02)
     for i, alpha in enumerate(alpha_values):
         print(f"Noise level: {alpha}")
-        
-        Y = (1-alpha) * X + alpha * np.random.randn(N, D)
+
+        Y = mix_with_noise(X, alpha)
         
         for method in tqdm(metrics.keys()):
             sim = metrics[method](X, Y)

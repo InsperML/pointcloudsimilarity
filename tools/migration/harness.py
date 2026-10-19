@@ -202,7 +202,12 @@ def texts_of_ijcnn_02(path):
 
 
 def experiments_data(root):
-    """The blobs experiments/training.py builds for each sweep configuration."""
+    """
+    The tensors experiments/training.py trains on, for each sweep configuration.
+
+    Only make_dataloader exists on both sides of the refactor; the tests in
+    tests/test_datasets_synthetic.py compare the float64 data it is built from.
+    """
     exp_dir = root / 'notebooks' / 'experiments'
     dataset_ = load_module(exp_dir / 'dataset_.py')
     with open(exp_dir / 'experiments.toml', 'rb') as f:
@@ -210,20 +215,13 @@ def experiments_data(root):
     keys = ['n_samples', 'n_features', 'n_classes', 'cluster_std', 'center_scale']
     for values in product(*(sweep[k] for k in keys)):
         config = dict(zip(keys, values))
-        X, y = dataset_.make_equidistant_blobs_dataset(**config)
-        X_t, y_t, _ = dataset_.make_dataloader(**config, device=torch.device('cpu'))
-        centers = dataset_.make_equidistant_centers(
-            config['n_classes'], config['n_features'], scale=config['center_scale']
-        )
+        X, y, _ = dataset_.make_dataloader(**config, device=torch.device('cpu'))
         RECORDS.append(
             {
-                'call': 'equidistant_blobs',
+                'call': 'make_dataloader',
                 'params': config,
                 'x': digest(X),
                 'y': digest(y),
-                'x_tensor': digest(X_t),
-                'y_tensor': digest(y_t),
-                'centers': digest(centers),
             }
         )
 
@@ -266,6 +264,12 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / f'{args.target}.json', 'w') as f:
         json.dump({'library': str(library), 'records': RECORDS}, f, indent=1)
+
+    # Streaming datasets leave threads that can abort interpreter shutdown
+    # (seen with 01c_texts). The results are written, so skip the shutdown.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 
 
 if __name__ == '__main__':

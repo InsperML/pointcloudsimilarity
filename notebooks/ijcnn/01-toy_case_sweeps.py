@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import toml
-from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 
+from pointcloudsimilarity.datasets import jittered_blobs, noise_pair, shuffled_blobs
 from pointcloudsimilarity.similarities import (
     CKASimilarity,
     GULPSimilarity,
@@ -23,56 +23,6 @@ from pointcloudsimilarity.similarities import (
 
 script_dir = Path(__file__).parent
 config = toml.load(script_dir / 'settings.toml')['figures']
-
-
-def blobs_with_noise(N, D, centers, blob_std, noise_std):
-    X, _ = make_blobs(
-        n_samples=N,
-        n_features=D,
-        centers=centers,
-        cluster_std=blob_std,
-    )
-    noise = np.random.normal(scale=noise_std, size=(N, D))
-    Y = X + noise
-    return X, Y
-
-
-def shuffled_blobs(N, D, centers, blob_std, random_state=None):
-    if not random_state:
-        random_state = np.random.randint(0, 10000)
-
-    if type(centers) == int:
-        cx = np.random.normal(0, 5, size=(centers, D))
-        n_centers = centers
-    else:
-        cx = centers
-        n_centers = centers.shape[0]
-
-    np.random.seed(random_state)
-    cy = np.random.permutation(cx)
-    samples_per_center = N // n_centers
-    assert samples_per_center * n_centers == N, (
-        'N must be divisible by number of centers'
-    )
-
-    X = []
-    Y = []
-
-    for cx_, cy_ in zip(cx, cy):
-        blob = np.random.normal(loc=0, scale=blob_std, size=(samples_per_center, D))
-        X.append(blob + cx_)
-        Y.append(blob + cy_)
-
-    X = np.vstack(X)
-    Y = np.vstack(Y)
-    return X, Y
-
-
-def distortion(N, D, distortion_strength, distortion_coefficient=2.0):
-    X = np.random.normal(size=(N, D))
-    phi = np.abs(X) ** distortion_coefficient
-    Y = X + phi * X / np.linalg.norm(X, axis=1, keepdims=True) * distortion_strength
-    return X, Y
 
 
 def nngs_sweeep(X, Y):
@@ -98,7 +48,7 @@ def run_all_sweeps(N, D):
     centers = np.sign(centers)
 
     # Local Jitter
-    X, Y = blobs_with_noise(N, D, centers, 0.1, 0.1)
+    X, Y = jittered_blobs(N, D, centers, 0.1, 0.1)
     sim_blobs = lib_get_embeddings.calculate_all_similaritiees(
         X,
         Y,
@@ -106,12 +56,14 @@ def run_all_sweeps(N, D):
     )
     nngs_blobs, _ = nngs_sweeep(X, Y)
 
-    # X, Y = distortion(N, D, 50, 40)
+    # X, Y = power_distortion(N, D, 50, 40)
     # sim_distortion = calculate_all_similaritiees(X, Y, similarities)
     # nngs_distortion, _ = nngs_sweeep(X, Y)
 
-    # Shuffled Centers
-    X, Y = shuffled_blobs(N, D, centers, 0.1, random_state=1)
+    # Shuffled Centers. Reseed as shuffled_blobs(random_state=1) did before it
+    # moved to the library, so this and the Random Noise below keep their data.
+    np.random.seed(1)
+    X, Y = shuffled_blobs(N, centers, 0.1)
     sim_shuffled = lib_get_embeddings.calculate_all_similaritiees(
         X,
         Y,
@@ -120,7 +72,7 @@ def run_all_sweeps(N, D):
     nngs_shuffled, ks = nngs_sweeep(X, Y)
 
     # Random Noise
-    X, Y = np.random.normal(size=(N, D)), np.random.normal(size=(N, D))
+    X, Y = noise_pair(N, D)
     sim_noise = lib_get_embeddings.calculate_all_similaritiees(
         X,
         Y,

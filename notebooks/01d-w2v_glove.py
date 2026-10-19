@@ -1,6 +1,7 @@
 import gensim.downloader as api
 import pickle
 import torch
+from pointcloudsimilarity.datasets import mix_with_noise
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
                                                TASSimilarityTorch,
@@ -138,16 +139,16 @@ def glove_experiment_noise_sweep():
     w, v200, v100, v50, v25 = zip(*glove_extract())
     # Normalize each sample (row) to unit L2 norm
 
-    X = torch.tensor(v25)
+    X = np.array(v25)
 
     nngs = {}
     alphas = np.linspace(0, 1, 100)
     ks = [1, 3, 10, 30, 100, 300]
     for alpha in tqdm(alphas):
         for k in ks:
-            Y = X * (1 - alpha) + torch.randn_like(X) * alpha
+            Y = mix_with_noise(X, alpha)
             metric = TASSimilarityTorch(k=k, batch_size=100, normalize=True)
-            sim = metric(torch.Tensor(X).cuda(), torch.Tensor(Y).cuda())
+            sim = metric(X, Y)
             if k not in nngs:
                 nngs[k] = []
             nngs[k].append(sim)

@@ -26,9 +26,6 @@ EXACT_KEYS = (
     'ks',
     'texts',
     'labels',
-    'x_tensor',
-    'y_tensor',
-    'centers',
 )
 
 
