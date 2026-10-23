@@ -6,8 +6,9 @@ from pointcloudsimilarity import cka
 
 
 def test_cka_rbf_sigma_small():
-    pc1 = np.random.randn(500, 30)
-    pc2 = pc1 + 0.05 * np.random.randn(500, 30)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((500, 30))
+    pc2 = pc1 + 0.05 * rng.standard_normal((500, 30))
     sim = cka.CKASimilarity(kernel='rbf', sigma=1e-10)
     similarity = sim(pc1, pc2)
 
@@ -16,8 +17,9 @@ def test_cka_rbf_sigma_small():
 
 
 def test_cka_rbf_sigma_large():
-    pc1 = np.random.randn(5, 3)
-    pc2 = pc1 + 0.05 * np.random.randn(5, 3)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((5, 3))
+    pc2 = pc1 + 0.05 * rng.standard_normal((5, 3))
     sim = cka.CKASimilarity(kernel='rbf', sigma=1e10)
     similarity = sim(pc1, pc2)
 

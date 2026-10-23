@@ -4,7 +4,8 @@ from pointcloudsimilarity import cka, gulp, procrustes, pwcca, tas
 
 
 def test_procrustes_1():
-    pc1 = np.random.randn(10, 3)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((10, 3))
     pc2 = pc1 + 1.0
     sim = procrustes.ProcrustesSimilarity()
     dist = sim(pc1, pc2)
@@ -12,16 +13,18 @@ def test_procrustes_1():
 
 
 def test_procrustes_2():
-    pc1 = np.random.randn(100, 20)
-    pc2 = np.random.randn(100, 20)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((100, 20))
+    pc2 = rng.standard_normal((100, 20))
     sim = procrustes.ProcrustesSimilarity()
     dist = sim(pc1, pc2)
     assert dist < 0.2
 
 
 def test_cka_linear_1():
-    pc1 = np.random.randn(10, 5)
-    pc2 = pc1 + 0.01 * np.random.randn(10, 5)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((10, 5))
+    pc2 = pc1 + 0.01 * rng.standard_normal((10, 5))
     sim = cka.CKASimilarity(kernel='linear')
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -29,8 +32,9 @@ def test_cka_linear_1():
 
 
 def test_cka_linear_2():
-    pc1 = np.random.randn(12, 3)
-    pc2 = np.random.randn(12, 3)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((12, 3))
+    pc2 = rng.standard_normal((12, 3))
     sim = cka.CKASimilarity(kernel='linear')
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -38,8 +42,9 @@ def test_cka_linear_2():
 
 
 def test_cka_rbf_1():
-    pc1 = np.random.randn(15, 4)
-    pc2 = pc1 + 0.05 * np.random.randn(15, 4)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((15, 4))
+    pc2 = pc1 + 0.05 * rng.standard_normal((15, 4))
     sim = cka.CKASimilarity(kernel='rbf')
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -47,8 +52,9 @@ def test_cka_rbf_1():
 
 
 def test_cka_rbf_2():
-    pc1 = np.random.randn(20, 6)
-    pc2 = np.random.randn(20, 6)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((20, 6))
+    pc2 = rng.standard_normal((20, 6))
     sim = cka.CKASimilarity(kernel='rbf')
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -56,7 +62,8 @@ def test_cka_rbf_2():
 
 
 def test_gulp_1():
-    pc1 = np.random.randn(20, 6)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((20, 6))
     pc2 = pc1
     sim = gulp.GULPSimilarity(lambda_=0.1)
     similarity = sim(pc1, pc2)
@@ -65,8 +72,9 @@ def test_gulp_1():
 
 
 def test_gulp_2():
-    pc1 = np.random.randn(25, 8)
-    pc2 = np.random.randn(25, 8)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((25, 8))
+    pc2 = rng.standard_normal((25, 8))
     sim = gulp.GULPSimilarity(lambda_=0.1)
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -74,8 +82,9 @@ def test_gulp_2():
 
 
 def test_gulp_3():
-    pc1 = np.random.randn(30, 10)
-    pc2 = pc1 + 10 * np.random.randn(30, 10) + np.tanh(10 * pc1)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((30, 10))
+    pc2 = pc1 + 10 * rng.standard_normal((30, 10)) + np.tanh(10 * pc1)
     sim = gulp.GULPSimilarity(lambda_=0.1)
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -83,8 +92,9 @@ def test_gulp_3():
 
 
 def test_pwcca_1():
-    pc1 = np.random.randn(15, 5)
-    pc2 = pc1 + 0.01 * np.random.randn(15, 5)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((15, 5))
+    pc2 = pc1 + 0.01 * rng.standard_normal((15, 5))
     sim = pwcca.PWCCASimilarity()
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -92,8 +102,9 @@ def test_pwcca_1():
 
 
 def test_pwcca_2():
-    pc1 = np.random.randn(18, 7)
-    pc2 = np.random.randn(18, 7)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((18, 7))
+    pc2 = rng.standard_normal((18, 7))
     sim = pwcca.PWCCASimilarity()
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -101,8 +112,9 @@ def test_pwcca_2():
 
 
 def test_tas_1():
-    pc1 = np.random.randn(100, 4)
-    pc2 = pc1 + 0.01 * np.random.randn(100, 4)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((100, 4))
+    pc2 = pc1 + 0.01 * rng.standard_normal((100, 4))
     sim = tas.TASSimilarityCPU(k=5)
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -110,8 +122,9 @@ def test_tas_1():
 
 
 def test_tas_2():
-    pc1 = np.random.randn(100, 6)
-    pc2 = np.random.randn(100, 6)
+    rng = np.random.default_rng(0)
+    pc1 = rng.standard_normal((100, 6))
+    pc2 = rng.standard_normal((100, 6))
     sim = tas.TASSimilarityCPU(k=5)
     similarity = sim(pc1, pc2)
     assert similarity is not None
@@ -119,13 +132,15 @@ def test_tas_2():
 
 
 # def test_gw_1():
-#     pc1 = np.random.randn(10, 3)
-#     pc2 = pc1 + 0.01 * np.random.randn(10, 3)
+#     rng = np.random.default_rng(0)
+#     pc1 = rng.standard_normal((10, 3))
+#     pc2 = pc1 + 0.01 * rng.standard_normal((10, 3))
 #     sim = gw_sim.gw_sim(pc1, pc2)
 #     assert sim > 50.0  # High similarity
 
 # def test_gw_2():
-#     pc1 = np.random.randn(10, 3)
-#     pc2 = np.random.randn(10, 3)
+#     rng = np.random.default_rng(0)
+#     pc1 = rng.standard_normal((10, 3))
+#     pc2 = rng.standard_normal((10, 3))
 #     sim = gw_sim.gw_sim(pc1, pc2)
 #     assert sim < 50.0  # Low similarity
