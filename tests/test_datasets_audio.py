@@ -18,6 +18,8 @@ from pointcloudsimilarity.datasets import load_fma  # noqa: E402
 TRACK_IDS = [2, 3, 5, 10, 20, 26, 30, 46, 48, 134, 1001, 1002, 2005]
 TRACK_IDS += [2010, 3000, 3001, 3002, 3003, 4040, 5050, 6060, 7070, 8080, 9090, 10010]
 MISSING = {3, 26, 1002, 3001}  # tracks without a wav file, as in a partial download
+EMPTY = {48, 4040}  # empty wav files, as a failed conversion leaves
+UNREADABLE = MISSING | EMPTY
 SAMPLE_RATE = 16000
 
 
@@ -36,11 +38,15 @@ def fma_dir(tmp_path_factory):
     (root / 'fma_metadata' / 'tracks.csv').write_text('\n'.join(lines) + '\n')
     rng = np.random.default_rng(0)
     for t in TRACK_IDS:
-        if t not in MISSING:
-            path = _wav_path(root, t)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            n_samples = int(rng.integers(SAMPLE_RATE // 2, 3 * SAMPLE_RATE))
-            sf.write(path, rng.uniform(-0.5, 0.5, n_samples), SAMPLE_RATE)
+        if t in MISSING:
+            continue
+        path = _wav_path(root, t)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if t in EMPTY:
+            path.touch()
+            continue
+        n_samples = int(rng.integers(SAMPLE_RATE // 2, 3 * SAMPLE_RATE))
+        sf.write(path, rng.uniform(-0.5, 0.5, n_samples), SAMPLE_RATE)
     return root
 
 
@@ -105,21 +111,34 @@ def test_matches_v1_vae_datasets(fma_dir, debug, seed):
 
     torch.manual_seed(seed)
     actual = load_fma(
-        fma_dir, clip_samples=SAMPLE_RATE, max_tracks=10 if debug else None
+        fma_dir,
+        clip_samples=SAMPLE_RATE,
+        max_tracks=10 if debug else None,
+        skip_missing=False,
     )
     assert [_rows(d) for d in actual] == [_rows(d) for d in expected]
     _assert_same_items(expected_items, _read_all(*actual))
     assert torch.equal(torch.get_rng_state(), expected_state)
 
 
-def test_missing_tracks_give_none_which_collate_drops(fma_dir):
+AVAILABLE_ROWS = [row for row, t in enumerate(TRACK_IDS) if t not in UNREADABLE]
+
+
+def test_lists_only_tracks_with_a_file(fma_dir):
     train, val = load_fma(fma_dir, seed=0)
+    assert sorted(_rows(train) + _rows(val)) == AVAILABLE_ROWS
+    assert all(audio is not None for audio, _ in _read_all(train, val))
+
+
+def test_without_skip_missing_tracks_give_none_which_collate_drops(fma_dir):
+    train, val = load_fma(fma_dir, seed=0, skip_missing=False)
     items = _read_all(train, val)
     rows = _rows(train) + _rows(val)
+    assert sorted(rows) == list(range(len(TRACK_IDS)))
     missing = [audio is None for audio, _ in items]
-    assert missing == [TRACK_IDS[row] in MISSING for row in rows]
+    assert missing == [TRACK_IDS[row] in UNREADABLE for row in rows]
     audio, mask, labels = audio_utils.collate_audio(items)
-    assert audio.shape[0] == len(labels) == len(TRACK_IDS) - len(MISSING)
+    assert audio.shape[0] == len(labels) == len(TRACK_IDS) - len(UNREADABLE)
 
 
 @pytest.mark.parametrize('clip_samples', [None, SAMPLE_RATE])
@@ -135,12 +154,16 @@ def test_clips_are_cut_from_longer_tracks_only(fma_dir, clip_samples):
         assert sample_rate == SAMPLE_RATE
 
 
+@pytest.mark.parametrize('skip_missing', [True, False])
 @pytest.mark.parametrize('max_tracks', [2, 10, 100])
-def test_max_tracks_keeps_the_first_tracks(fma_dir, max_tracks):
-    train, val = load_fma(fma_dir, max_tracks=max_tracks, seed=0)
-    kept = min(max_tracks, len(TRACK_IDS))
-    assert sorted(_rows(train) + _rows(val)) == list(range(kept))
-    assert len(train) == int(0.8 * kept)
+def test_max_tracks_keeps_the_first_tracks(fma_dir, max_tracks, skip_missing):
+    train, val = load_fma(
+        fma_dir, max_tracks=max_tracks, seed=0, skip_missing=skip_missing
+    )
+    listed = AVAILABLE_ROWS if skip_missing else list(range(len(TRACK_IDS)))
+    kept = listed[:max_tracks]
+    assert sorted(_rows(train) + _rows(val)) == kept
+    assert len(train) == int(0.8 * len(kept))
 
 
 def test_seed_fixes_the_split_without_global_state(fma_dir):
