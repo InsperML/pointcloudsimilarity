@@ -63,7 +63,7 @@ class TASSimilarityCPU(Similarity):
         normalize=True,
     ):
         """
-        Initialize the NNGS similarity measure.
+        Initialize the TAS similarity measure.
 
         Parameters:
         k (int or float): Number of neighbors or fraction of points to consider as neighbors.
@@ -79,7 +79,7 @@ class TASSimilarityCPU(Similarity):
 
     def __call__(self, pc1, pc2, **kwargs):
         """
-        Compute the NNGS similarity between two point clouds.
+        Compute the TAS similarity between two point clouds.
 
         Parameters:
         pc1 (np.ndarray): First point cloud of shape (N, D1).
@@ -87,10 +87,10 @@ class TASSimilarityCPU(Similarity):
         (pc1 and pc2 must have the same number of points, but can have different dimensionality)
 
         Returns:
-        float: NNGS similarity between the two point clouds.
+        float: TAS similarity between the two point clouds.
         """
         k = resolve_k(self.k, pc1.shape[0])
-        nngs = mean_neighborhood_similarity_from_points(
+        tas = mean_neighborhood_similarity_from_points(
             pc1,
             pc2,
             k=k,
@@ -98,9 +98,9 @@ class TASSimilarityCPU(Similarity):
             metric=self.metric,
         )
         if self.normalize:
-            nngs = normalize_tas(nngs, pc1.shape[0], k)
+            tas = normalize_tas(tas, pc1.shape[0], k)
 
-        return nngs
+        return tas
 
 
 class TASSimilarityTorch(Similarity):
@@ -135,8 +135,8 @@ class TASSimilarityTorch(Similarity):
         n_samples = pc1.shape[0]
         k = resolve_k(self.k, n_samples)
 
-        # Calculate raw NNGS using the PyTorch engine
-        nngs_raw = compute_tas_pytorch_batched(
+        # Calculate raw TAS using the PyTorch engine
+        tas_raw = compute_tas_pytorch_batched(
             pc1,
             pc2,
             k=k,
@@ -147,8 +147,8 @@ class TASSimilarityTorch(Similarity):
 
         if self.normalize:
             return normalize_tas(
-                nngs_raw, n_samples, k, only_intersection=self.only_intersection
+                tas_raw, n_samples, k, only_intersection=self.only_intersection
             )
 
-        return nngs_raw
+        return tas_raw
 

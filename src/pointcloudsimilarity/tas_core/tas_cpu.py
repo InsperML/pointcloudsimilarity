@@ -1,6 +1,6 @@
 """
-NNGS, as described in "Measuring similarity between embedding spaces using induced
-neighborhood graphs" (https://arxiv.org/abs/2411.08687)
+TAS, as described in "Diagnosing Neural Convergence with Topological Alignment
+Spectra" (https://arxiv.org/abs/2411.08687)
 """
 
 import numpy as np
@@ -66,7 +66,7 @@ def mean_neighborhood_similarity_from_points(
     metric='minkowski',
 ):
     """
-    This is $NNGS(X, Y, k)$
+    This is $TAS(X, Y, k)$, before normalization
     """
     nx = nearest_neighbors(X, k=k, n_jobs=n_jobs, metric=metric)
     ny = nearest_neighbors(Y, k=k, n_jobs=n_jobs, metric=metric)

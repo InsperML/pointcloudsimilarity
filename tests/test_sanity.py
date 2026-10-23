@@ -100,7 +100,7 @@ def test_pwcca_2():
     assert similarity < 0.9
 
 
-def test_nngs_1():
+def test_tas_1():
     pc1 = np.random.randn(100, 4)
     pc2 = pc1 + 0.01 * np.random.randn(100, 4)
     sim = tas.TASSimilarityCPU(k=5)
@@ -109,7 +109,7 @@ def test_nngs_1():
     assert similarity > 0.8
 
 
-def test_nngs_2():
+def test_tas_2():
     pc1 = np.random.randn(100, 6)
     pc2 = np.random.randn(100, 6)
     sim = tas.TASSimilarityCPU(k=5)

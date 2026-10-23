@@ -59,13 +59,12 @@ def test_pwcca_nan_raises(rng):
         pwcca.PWCCASimilarity()(X, X)
 
 
-@pytest.mark.parametrize('method', ['tas_torch', 'nngs_torch'])
-def test_compute_similarity_tas_names(rng, method):
+def test_compute_similarity_tas_name(rng):
     X = rng.standard_normal((50, 4))
-    assert compute_similarity(X, X, method=method, k=5, device='cpu') == pytest.approx(1.0)
+    assert compute_similarity(X, X, method='tas_torch', k=5, device='cpu') == pytest.approx(1.0)
 
 
 def test_compute_similarity_unknown_method_lists_available(rng):
     with pytest.raises(ValueError, match='tas_torch'):
-        compute_similarity(np.zeros((5, 2)), np.zeros((5, 2)), method='nngs')
+        compute_similarity(np.zeros((5, 2)), np.zeros((5, 2)), method='nngs_torch')
     assert 'tas_cpu' in available_metrics

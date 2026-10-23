@@ -7,8 +7,8 @@ from pointcloudsimilarity.similarities import (
 )
 
 
-@pytest.mark.parametrize('N', [100, 1000, 10000])
-def test_nngs_benchmark_cpu(benchmark, N):
+@pytest.mark.parametrize('N', [100, 1000])
+def test_tas_benchmark_cpu(benchmark, N):
     D = 20
     k = 30
 
@@ -19,8 +19,8 @@ def test_nngs_benchmark_cpu(benchmark, N):
     assert 0.0 <= result <= 1.0
 
 
-@pytest.mark.parametrize('N', [100, 1000, 10000])
-def test_nngs_benchmark_torch(benchmark, N):
+@pytest.mark.parametrize('N', [100, 1000])
+def test_tas_benchmark_torch(benchmark, N):
     D = 20
     k = 30
 

@@ -16,10 +16,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-faiss = [
-    "faiss-gpu-cu12>=1.13.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
-    "faiss-cpu>=1.13.0; sys_platform != 'linux' or platform_machine != 'x86_64'",
-]
 # rtd and insperdatasets install from git, so pip gets them too: insperdatasets
 # is not on PyPI, and PyPI's rtd is an unrelated package (a Read the Docs tool).
 rtd = [

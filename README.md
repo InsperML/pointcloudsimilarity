@@ -56,7 +56,6 @@ Some parts need extra dependencies, installed with an extra:
 
 | Extra | Needed for |
 |---|---|
-| `faiss` | `TASSimilarityFaiss` |
 | `rtd` | `RTDSimilarity` |
 | `data` | `load_text_dataset` and the GloVe loaders in `pointcloudsimilarity.datasets` |
 | `audio` | `load_fma` in `pointcloudsimilarity.datasets` |

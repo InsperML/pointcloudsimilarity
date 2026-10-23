@@ -31,9 +31,6 @@ available_metrics = {
     "tas_torch": TASSimilarityTorch,
     "pwcca": PWCCASimilarity,
     "rtd": RTDSimilarity,
-    # Pre-rename aliases, kept for existing scripts.
-    "nngs_cpu": TASSimilarityCPU,
-    "nngs_torch": TASSimilarityTorch,
 }
 
 
