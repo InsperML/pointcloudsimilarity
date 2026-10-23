@@ -1,46 +1,55 @@
 # Point Cloud Similarity
 
-## Project Overview
+`pointcloudsimilarity` is a Python library for comparing paired point clouds,
+such as the embeddings two neural networks produce for the same inputs. It
+implements the **Topological Alignment Spectrum (TAS)** together with
+established representational similarity measures (CKA, GULP,
+Gromov–Wasserstein, Procrustes and PWCCA) behind one interface, with GPU
+support through PyTorch.
 
-This repository accompanies our IJCNN 2026 paper, *“Diagnosing Neural Convergence with Topological Alignment Spectra”*.
+## Topological Alignment Spectrum
 
-We introduce the **Topological Alignment Spectrum (TAS)**, a multi-scale diagnostic framework for analyzing representational similarity in neural networks. Unlike traditional scalar metrics such as CKA or Procrustes—which compress alignment into a single value—TAS evaluates similarity **across a continuum of neighborhood scales**, revealing how models align locally, globally, and everything in between.
+TAS was introduced in *Diagnosing Neural Convergence with Topological Alignment
+Spectra* (IJCNN 2026). Scalar measures such as CKA or Procrustes compress
+alignment into a single number. TAS instead measures similarity **across a
+continuum of neighborhood scales**, showing how two representations agree
+locally, globally, and at every scale in between.
 
-By normalizing neighborhood overlap against a principled random baseline, TAS produces a **dimension-invariant spectrum** where:
-- **1** indicates perfect structural alignment  
-- **0** corresponds to chance-level similarity  
-- **< 0** reveals active anti-alignment at specific scales  
+TAS normalizes neighborhood overlap against a random baseline, so the spectrum
+does not depend on dimensionality and reads the same way at every scale:
+- **1** means the neighborhoods are identical
+- **0** means chance-level agreement
+- **< 0** means less agreement than chance at that scale
 
-This enables TAS to disentangle distinct geometric phenomena—such as **local noise (jitter)** versus **global semantic reorganization**—that are typically indistinguishable under standard methods.
+This lets TAS tell apart geometric changes that scalar measures often score the
+same, such as **local noise (jitter)** and **global reorganization** of clusters.
 
----
+### When it helps
 
-## Why this matters
+Neural networks are often **underspecified**: models with the same accuracy can
+encode very different internal structure, and may then behave differently under
+distribution shift. Scalar similarity scores can report high similarity even when
+the structure differs substantially. TAS shows *where* (at which scale) and *how*
+two representations diverge, which helps with interpretability, debugging and
+model auditing. In the paper, for example, TAS shows that fine-tuning MultiBERTs
+reorganizes their representations globally, not only locally.
 
-Modern neural networks are often **underspecified**: different models can achieve identical accuracy while encoding fundamentally different internal structures. This has practical implications:
+## Citing
 
-- **Risk:** Two models with similar performance may behave inconsistently under distribution shift.  
-- **Limitation of current tools:** Scalar similarity metrics frequently report high similarity even when structural differences are substantial (e.g., jitter vs. cluster reshuffling).  
-- **Opportunity:** TAS provides a **diagnostic lens** to identify *where* and *how* representations diverge, improving interpretability, debugging, and model auditing.
+If you use this library, please cite the paper that introduced TAS:
 
-In our experiments (e.g., MultiBERTs), TAS reveals that fine-tuning induces **global topological reorganization**, challenging the common assumption that adaptation is mostly local.
+```bibtex
+@inproceedings{tavares2026ijcnn,
+    title={Diagnosing Neural Convergence with Topological Alignment Spectra},
+    author={Tiago F. Tavares and Fabio Ayres and Paris Smaragdis},
+    booktitle={International Joint Conference on Neural Networks (IJCNN)},
+    year={2026},
+    url={https://arxiv.org/abs/2411.08687},
+}
+```
 
----
-
-## What you’ll find in this repo
-
-- Implementation of the **Topological Alignment Spectrum (TAS)** and other point cloud similarity measures
-- Tools to analyze representational similarity across scales
-
-## Papers
-
-    @misc{tavares2026ijcnn,
-        title={Diagnosing Neural Convergence with Topological Alignment Spectra}, 
-        author={Tiago F. Tavares and Fabio Ayres and Paris Smaragdis},
-        year={2026},
-        booktitle={Published at IJCNN 2026},
-        url={https://arxiv.org/abs/2411.08687}, 
-    }
+If you use one of the other measures, please also cite its original paper,
+listed under [Implemented similarity measures](#implemented-similarity-measures).
 
 ## Quick start
 
@@ -97,7 +106,7 @@ models). Each class is also available through
 | Procrustes | `ProcrustesSimilarity` (`procrustes`) | Centers both clouds and scales them to unit norm, then rotates (or reflects) and scales the second to fit the first as closely as possible. The disparity is the remaining sum of squared differences, and the similarity is `1 − disparity`. Uses `scipy.spatial.procrustes`, so both clouds need the same dimension. | Gower, *Generalized Procrustes Analysis*, Psychometrika, 1975. [doi:10.1007/BF02291478](https://doi.org/10.1007/BF02291478) |
 | PWCCA | `PWCCASimilarity` (`pwcca`) | Canonical Correlation Analysis finds pairs of directions, one in each cloud, whose projections are maximally correlated. PWCCA averages those canonical correlations, weighting each by how much of the first cloud it accounts for; `symmetric=True` averages both directions. It needs more points than dimensions. The code is adapted from Google's [SVCCA](https://github.com/google/svcca) repository. | Morcos, Raghu & Bengio, *Insights on representational similarity in neural networks with canonical correlation*, NeurIPS 2018. [arXiv:1806.05759](https://arxiv.org/abs/1806.05759) |
 
-## Cloning and working with the repo
+## Development
 
 ```bash
 git clone git@github.com:InsperML/pointcloudsimilarity.git
@@ -108,5 +117,5 @@ source .venv/bin/activate
 
 ## License
 
-Apache-2.0, see [LICENSE](LICENSE). `legacy/pwcca.py` is adapted from Google's
+Apache-2.0, see [LICENSE](https://github.com/InsperML/pointcloudsimilarity/blob/main/LICENSE). `legacy/pwcca.py` is adapted from Google's
 [SVCCA](https://github.com/google/svcca), also under Apache-2.0.
