@@ -56,7 +56,6 @@ Some parts need extra dependencies, installed with an extra:
 
 | Extra | Needed for |
 |---|---|
-| `rtd` | `RTDSimilarity` |
 | `data` | `load_text_dataset` and the GloVe loaders in `pointcloudsimilarity.datasets` |
 | `audio` | `load_fma` in `pointcloudsimilarity.datasets` |
 | `notebooks` | the experiment scripts in `notebooks/` |
@@ -75,7 +74,6 @@ from pointcloudsimilarity.similarities import (
     TASSimilarityTorch,
     ProcrustesSimilarity,
     PWCCASimilarity,
-    RTDSimilarity
 )
 
 my_similarity = TASSimilarityTorch(k=3) # or choose other similarities?

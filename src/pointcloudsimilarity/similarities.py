@@ -3,7 +3,6 @@ from .gulp import GULPSimilarity
 from .gw_sim import GWSimilarity
 from .procrustes import ProcrustesSimilarity
 from .pwcca import PWCCASimilarity
-from .rtd import RTDSimilarity
 from .tas import (
     TASSimilarityCPU,
     TASSimilarityTorch,
@@ -16,7 +15,6 @@ __all__ = [
     "GWSimilarity",
     "PWCCASimilarity",
     "ProcrustesSimilarity",
-    "RTDSimilarity",
     "TASSimilarityCPU",
     "TASSimilarityTorch",
     "tas_spectrum",
@@ -30,7 +28,6 @@ available_metrics = {
     "tas_cpu": TASSimilarityCPU,
     "tas_torch": TASSimilarityTorch,
     "pwcca": PWCCASimilarity,
-    "rtd": RTDSimilarity,
 }
 
 
@@ -43,7 +40,7 @@ def compute_similarity(X, Y, method='cka', **kwargs):
     - Y: np.ndarray, second point cloud
     - method: str, similarity method to use (a key of available_metrics, e.g.
       'cka', 'gulp', 'procrustes', 'gw_sim', 'tas_torch', 'tas_cpu',
-      'pwcca', 'rtd')
+      'pwcca')
     - kwargs: additional keyword arguments for the similarity class
 
     Returns:

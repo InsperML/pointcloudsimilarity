@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import pytest
 
-from pointcloudsimilarity import gw_sim, pwcca, rtd
+from pointcloudsimilarity import gw_sim, pwcca
 from pointcloudsimilarity.similarities import available_metrics, compute_similarity
 
 
@@ -24,12 +24,6 @@ def test_import_does_not_load_tensorflow():
 def test_gw_runs(rng):
     X = rng.standard_normal((20, 3))
     assert 0.0 < gw_sim.GWSimilarity()(X, X + 0.01 * rng.standard_normal((20, 3))) <= 1.0
-
-
-@pytest.mark.skipif(rtd.rtd is not None, reason='rtd is installed')
-def test_rtd_missing_raises():
-    with pytest.raises(ImportError, match='rtd'):
-        rtd.RTDSimilarity()
 
 
 @pytest.mark.parametrize('symmetric', [False, True])
