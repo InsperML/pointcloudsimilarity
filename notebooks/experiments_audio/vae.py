@@ -90,7 +90,8 @@ class ConvolutionalVAE(nn.Module):
         self.fc_logvar = nn.Linear(flat_size, latent_dim)
         self.fc_decode = nn.Linear(latent_dim, flat_size)
 
-        # Decoder: N × (ConvTranspose2d stride-2 → BN → LeakyReLU), last step → Sigmoid
+        # Decoder: N × (ConvTranspose2d stride-2 → BN → LeakyReLU), last step linear:
+        # log1p-scaled mels go well above 1, out of a Sigmoid's range.
         dec_channels = enc_channels[::-1]
         dec_layers = []
         for i in range(n_steps):
@@ -105,9 +106,7 @@ class ConvolutionalVAE(nn.Module):
                     output_padding=1,
                 )
             )
-            if is_last:
-                dec_layers.append(nn.Sigmoid())
-            else:
+            if not is_last:
                 dec_layers += [
                     nn.BatchNorm2d(dec_channels[i + 1]),
                     nn.LeakyReLU(0.2, inplace=True),
