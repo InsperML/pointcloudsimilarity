@@ -1,25 +1,54 @@
 [project]
 name = "pointcloudsimilarity"
-version = "1.0.0"
+version = "0.1.0"
 description = "Topological Alignment Spectrum (TAS) and other similarity measures between paired point clouds"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Tiago Tavares", email = "tiagoft@gmail.com" }
+    { name = "Tiago Tavares", email = "tiagoft@gmail.com" },
+    { name = "Fabio Ayres" },
+    { name = "Paris Smaragdis" },
 ]
-requires-python = ">=3.12"
+keywords = [
+    "representational similarity",
+    "point clouds",
+    "topological alignment spectrum",
+    "CKA",
+    "neural networks",
+    "interpretability",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=2.3.4",
-    "pot>=0.9.6.post1",
-    "scikit-learn>=1.7.2",
-    "scipy>=1.16.3",
-    "torch>=2.9.1",
+    "numpy>=1.24",
+    "pot>=0.9",
+    "scikit-learn>=1.2",
+    "scipy>=1.10",
+    "torch>=2.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/InsperML/pointcloudsimilarity"
+Paper = "https://arxiv.org/abs/2411.08687"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src"]
 
 [dependency-groups]
 dev = [
