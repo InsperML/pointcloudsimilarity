@@ -3,7 +3,6 @@ import numpy as np
 from .core_similarity import Similarity, resolve_device
 from .tas_core.normalization import normalize_tas, resolve_k
 from .tas_core.tas_cpu import mean_neighborhood_similarity_from_points
-from .tas_core.tas_faiss import TASFAISS
 from .tas_core.tas_torch import compute_tas_pytorch_batched, compute_tas_spectrum_torch
 
 
@@ -153,56 +152,3 @@ class TASSimilarityTorch(Similarity):
 
         return nngs_raw
 
-
-class TASSimilarityFaiss(Similarity):
-    def __init__(
-        self,
-        k=5,
-        approximate=False,
-        metric='euclidean',
-        batch_size=5000,
-        gpu=None,
-        normalize=True,
-    ):
-        """
-        TAS Similarity using FAISS backend.
-
-        Parameters:
-        k (int or float): Number of neighbors or fraction.
-        approximate (bool): Use approximate search (IVF) or exact (Flat).
-        metric (str): 'euclidean' or 'cosine'.
-        batch_size (int): Chunk size for Jaccard calculation.
-        gpu (bool): Use the GPU. If None, use it when FAISS can see one.
-        normalize (bool): Apply hypergeometric normalization.
-        """
-        self.k = k
-        self.approximate = approximate
-        self.metric = metric
-        self.batch_size = batch_size
-        self.gpu = gpu
-        self.normalize = normalize
-        self.faiss_calculator = TASFAISS(
-            approximate=self.approximate,
-            metric=self.metric,
-            gpu=self.gpu,
-        )
-
-    def __call__(self, pc1, pc2, **kwargs):
-        """
-        Compute TAS similarity using FAISS.
-        """
-        n_samples = pc1.shape[0]
-        k = resolve_k(self.k, n_samples)
-
-        # Rebuild the indexes on every call: the same object may be reused
-        # on different point clouds.
-        self.faiss_calculator.fit(pc1, pc2)
-        tas_raw = self.faiss_calculator(
-            k=k,
-            batch_size=self.batch_size,
-        )
-
-        if self.normalize:
-            return normalize_tas(tas_raw, n_samples, k)
-
-        return tas_raw

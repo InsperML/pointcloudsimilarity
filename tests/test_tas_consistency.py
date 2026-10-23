@@ -1,14 +1,9 @@
-import os
-import subprocess
-import sys
-
 import numpy as np
 import pytest
 import torch
 
 from pointcloudsimilarity.similarities import (
     TASSimilarityCPU,
-    TASSimilarityFaiss,
     TASSimilarityTorch,
 )
 
@@ -16,19 +11,10 @@ N, D = 300, 8
 
 
 def _backends():
-    backends = [
+    return [
         pytest.param(lambda **kw: TASSimilarityCPU(**kw), id='cpu'),
         pytest.param(lambda **kw: TASSimilarityTorch(device='cpu', **kw), id='torch'),
     ]
-    try:
-        import faiss  # noqa: F401
-
-        backends.append(
-            pytest.param(lambda **kw: TASSimilarityFaiss(gpu=False, **kw), id='faiss')
-        )
-    except ImportError:
-        pass
-    return backends
 
 
 @pytest.fixture
@@ -118,8 +104,7 @@ def test_neighborhood_overlaps_matches_sets(rng):
     n, k = 50, 6
     idx_x = np.stack([rng.choice(n, k, replace=False) for _ in range(20)])
     idx_y = np.stack([rng.choice(n, k, replace=False) for _ in range(20)])
-    idx_x[0, -1] = idx_y[0, -1] = -1  # FAISS "no neighbor found" must not match
-    expected = [len(set(a) & set(b) - {-1}) for a, b in zip(idx_x, idx_y)]
+    expected = [len(set(a) & set(b)) for a, b in zip(idx_x, idx_y)]
     result = neighborhood_overlaps(
         torch.from_numpy(idx_x), torch.from_numpy(idx_y), n, k, only_intersection=True
     )
@@ -173,21 +158,3 @@ def test_torch_neighbors_never_include_self(clouds_with_duplicates):
         idx = _nearest_neighbors(X[start:], sq[start:], X, sq, 10, start)
         own = torch.arange(start, len(X)).unsqueeze(1)
         assert not (idx == own).any()
-
-
-def test_faiss_drop_self():
-    from pointcloudsimilarity.tas_core.tas_faiss import _drop_self
-
-    rows = np.array([[0, 5, 6], [7, 1, 8], [3, 4, 9]])  # row 2 lacks its own index
-    assert _drop_self(rows, 2).tolist() == [[5, 6], [7, 8], [3, 4]]
-
-
-def test_faiss_defaults_to_cpu_without_gpu():
-    pytest.importorskip('faiss')
-    code = (
-        'import numpy as np; from pointcloudsimilarity.similarities import TASSimilarityFaiss; '
-        'X = np.random.default_rng(0).standard_normal((100, 4)); '
-        'assert TASSimilarityFaiss(k=5)(X, X) == 1.0'
-    )
-    env = {**os.environ, 'CUDA_VISIBLE_DEVICES': ''}
-    assert subprocess.run([sys.executable, '-c', code], env=env, check=False).returncode == 0

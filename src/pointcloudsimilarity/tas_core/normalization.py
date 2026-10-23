@@ -2,7 +2,7 @@
 Shared neighborhood-size and normalization logic for all TAS backends.
 
 Every backend must resolve k and normalize the same way, otherwise the
-CPU, PyTorch and FAISS implementations report different values for the
+CPU and PyTorch implementations report different values for the
 same point clouds.
 """
 
