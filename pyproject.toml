@@ -1,7 +1,7 @@
 [project]
 name = "pointcloudsimilarity"
 version = "1.0.0"
-description = "Add your description here"
+description = "Topological Alignment Spectrum (TAS) and other similarity measures between paired point clouds"
 readme = "README.md"
 authors = [
     { name = "Tiago Tavares", email = "tiagoft@gmail.com" }
@@ -20,24 +20,25 @@ faiss = [
     "faiss-gpu-cu12>=1.13.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "faiss-cpu>=1.13.0; sys_platform != 'linux' or platform_machine != 'x86_64'",
 ]
+# rtd and insperdatasets install from git, so pip gets them too: insperdatasets
+# is not on PyPI, and PyPI's rtd is an unrelated package (a Read the Docs tool).
 rtd = [
     "ripserplusplus",
-    "rtd",
+    "rtd @ git+https://github.com/IlyaTrofimov/RTD.git",
 ]
 data = [
     "datasets>=4.4.1",
     "gensim>=4.4.0",
 ]
-# insperdatasets is installed from git (see [tool.uv.sources]).
 audio = [
-    "insperdatasets",
+    "insperdatasets @ git+https://github.com/InsperML/insperdatasets.git",
 ]
 notebooks = [
     "accelerate>=1.12.0",
     "bitsandbytes>=0.48.2",
     "datasets>=4.4.1",
     "gensim>=4.4.0",
-    "insperdatasets",
+    "insperdatasets @ git+https://github.com/InsperML/insperdatasets.git",
     "protobuf>=6.33.1",
     "sentence-transformers>=5.1.2",
     "tensorflow>=2.20.0",
@@ -51,6 +52,9 @@ notebooks = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [dependency-groups]
 dev = [
@@ -67,6 +71,4 @@ quote-style = "single"
 addopts = "--benchmark-columns=mean,min,max,stddev"
 
 [tool.uv.sources]
-rtd = { git = "https://github.com/IlyaTrofimov/RTD.git" }
 ripserplusplus = { git = "https://github.com/simonzhang00/ripser-plusplus.git" }
-insperdatasets = { git = "https://github.com/InsperML/insperdatasets.git" }
