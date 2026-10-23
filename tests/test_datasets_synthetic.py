@@ -318,7 +318,7 @@ def test_mix_with_noise_endpoints():
 
 
 def test_import_loads_no_heavy_dependencies():
-    heavy = ['datasets', 'gensim', 'insperdatasets', 'tensorflow', 'transformers']
+    heavy = ['datasets', 'gensim', 'tensorflow', 'transformers']
     code = (
         'import sys, pointcloudsimilarity.datasets; '
         f'sys.exit(sorted(m for m in {heavy!r} if m in sys.modules) or 0)'

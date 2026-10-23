@@ -33,7 +33,7 @@ In our experiments (e.g., MultiBERTs), TAS reveals that fine-tuning induces **gl
 - Reproducible experiments on synthetic data and language models
 - Tools to analyze representational similarity across scales
 - Examples illustrating how TAS distinguishes different geometric distortions
-- Synthetic point clouds with known distortions, and loaders for the text, word-vector and audio data of the experiments
+- Synthetic point clouds with known distortions, and loaders for the text and word-vector data of the experiments
 
 ## Papers
 
@@ -50,18 +50,6 @@ In our experiments (e.g., MultiBERTs), TAS reveals that fine-tuning induces **gl
 
 ```bash
 pip install git+ssh://git@github.com/InsperML/pointcloudsimilarity.git
-```
-
-Some parts need extra dependencies, installed with an extra:
-
-| Extra | Needed for |
-|---|---|
-| `data` | `load_text_dataset` and the GloVe loaders in `pointcloudsimilarity.datasets` |
-| `audio` | `load_fma` in `pointcloudsimilarity.datasets` |
-| `notebooks` | the experiment scripts in `notebooks/` |
-
-```bash
-pip install "pointcloudsimilarity[data] @ git+ssh://git@github.com/InsperML/pointcloudsimilarity.git"
 ```
 
 ### Example code
@@ -135,16 +123,14 @@ The generators take `random_state` as scikit-learn does: an int for reproducible
 
 The loaders import their dependencies only when called, so `import pointcloudsimilarity.datasets` stays light.
 
-| Loader | Returns | Extra |
-|---|---|---|
-| `load_text_dataset` | Texts, and optionally labels, sampled reproducibly from a Hugging Face dataset | `data` |
-| `load_glove_twitter`, `aligned_glove_vectors` | GloVe Twitter word vectors; the same words' vectors from several models, one point cloud per model | `data` |
-| `load_fma` | Free Music Archive tracks, as torch training and validation datasets | `audio` |
+| Loader | Returns |
+|---|---|
+| `load_text_dataset` | Texts, and optionally labels, sampled reproducibly from a Hugging Face dataset |
+| `load_glove_twitter`, `aligned_glove_vectors` | GloVe Twitter word vectors; the same words' vectors from several models, one point cloud per model |
 
 ```python
 from pointcloudsimilarity.datasets import (
     aligned_glove_vectors,
-    load_fma,
     load_glove_twitter,
     load_text_dataset,
 )
@@ -158,19 +144,16 @@ texts, labels = load_text_dataset(
 models = {dim: load_glove_twitter(dim, cache_dir='glove_models') for dim in (25, 200)}
 words, vectors = aligned_glove_vectors(models, n_words=1000)
 spectrum = tas_spectrum(vectors[25], vectors[200], ks)
-
-# Random 3 s clips of FMA tracks, for training an audio model
-train, val = load_fma('/path/to/fma', clip_samples=48000, seed=0)
 ```
 
-`load_glove_twitter` downloads a model on first use and parses it, which can take from minutes (25 dimensions) to half an hour (200 dimensions); with `cache_dir`, later calls load the parsed model in seconds. `load_fma` expects `fma_metadata/tracks.csv` and the tracks as 16 kHz WAV files in `fma_wav16k/`, and lists only tracks whose file is there. Its items are `((audio, sample_rate), genre)`; batch them with `insperdatasets.audio.utils.collate_audio`.
+`load_glove_twitter` downloads a model on first use and parses it, which can take from minutes (25 dimensions) to half an hour (200 dimensions); with `cache_dir`, later calls load the parsed model in seconds.
 
 ## Cloning and working with the repo
 
 ```bash
 git clone git@github.com:InsperML/pointcloudsimilarity.git
 cd pointcloudsimilarity
-uv sync  # add --extra data, --extra audio, ... as needed, or --all-extras
+uv sync
 source .venv/bin/activate
 ```
 

@@ -4,8 +4,6 @@ Texts from Hugging Face datasets, sampled reproducibly.
 
 import numpy as np
 
-from ._optional import import_optional
-
 __all__ = ['load_text_dataset']
 
 
@@ -42,7 +40,8 @@ def load_text_dataset(
     tuple: The texts (list of str) and their labels (list), or None as labels
     if label_column is None.
     """
-    datasets = import_optional('datasets', 'load_text_dataset')
+    import datasets
+
     ds = datasets.load_dataset(name, config, split=split, streaming=streaming)
     if pool_size is not None:
         if not streaming:

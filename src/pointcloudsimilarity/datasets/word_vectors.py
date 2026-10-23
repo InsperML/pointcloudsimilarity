@@ -6,8 +6,6 @@ from pathlib import Path
 
 import numpy as np
 
-from ._optional import import_optional
-
 __all__ = ['GLOVE_TWITTER_DIMS', 'aligned_glove_vectors', 'load_glove_twitter']
 
 GLOVE_TWITTER_DIMS = (25, 50, 100, 200)
@@ -34,10 +32,12 @@ def load_glove_twitter(dim, cache_dir=None):
     name = f'glove-twitter-{dim}'
     path = None if cache_dir is None else Path(cache_dir) / f'{name}.kv'
     if path is not None and path.exists():
-        models = import_optional('gensim.models', 'load_glove_twitter')
+        from gensim import models
+
         return models.KeyedVectors.load(str(path), mmap='r')
 
-    downloader = import_optional('gensim.downloader', 'load_glove_twitter')
+    from gensim import downloader
+
     vectors = downloader.load(name)
     if path is not None:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -6,7 +6,6 @@ real vocabularies, with tied counts and non-ASCII words, but few dimensions.
 """
 
 import pickle
-import sys
 
 import numpy as np
 import pytest
@@ -137,10 +136,3 @@ def test_without_cache_dir_every_call_parses(downloader):
 def test_unknown_dims_are_rejected():
     with pytest.raises(ValueError, match='25, 50, 100, 200'):
         load_glove_twitter(300)
-
-
-def test_missing_gensim_explains_install(monkeypatch):
-    for module in ['gensim', 'gensim.downloader', 'gensim.models']:
-        monkeypatch.setitem(sys.modules, module, None)
-    with pytest.raises(ImportError, match="'gensim' package.*uv sync --extra data"):
-        load_glove_twitter(25)

@@ -7,8 +7,6 @@ are copied from v1.0 and changed only to call datasets.load_dataset through
 the module, so that the fake applies to them too.
 """
 
-import sys
-
 import numpy as np
 import pytest
 
@@ -207,9 +205,3 @@ def test_seed_sets_the_sample(hub):
     first = load_text_dataset('x', n_samples=50, seed=1)
     assert load_text_dataset('x', n_samples=50, seed=1) == first
     assert load_text_dataset('x', n_samples=50, seed=2) != first
-
-
-def test_missing_datasets_package_explains_install(monkeypatch):
-    monkeypatch.setitem(sys.modules, 'datasets', None)
-    with pytest.raises(ImportError, match='uv sync --extra data'):
-        load_text_dataset('imdb')
