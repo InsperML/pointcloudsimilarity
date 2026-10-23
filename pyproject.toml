@@ -3,6 +3,8 @@ name = "pointcloudsimilarity"
 version = "1.0.0"
 description = "Topological Alignment Spectrum (TAS) and other similarity measures between paired point clouds"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     { name = "Tiago Tavares", email = "tiagoft@gmail.com" }
 ]
@@ -16,7 +18,7 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [dependency-groups]

@@ -84,3 +84,8 @@ cd pointcloudsimilarity
 uv sync
 source .venv/bin/activate
 ```
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE). `legacy/pwcca.py` is adapted from Google's
+[SVCCA](https://github.com/google/svcca), also under Apache-2.0.

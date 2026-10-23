@@ -11,6 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modified by the pointcloudsimilarity authors from cca_core.py and pwcca.py
+# of https://github.com/google/svcca:
+# - merged both files into this module and dropped the __future__ imports;
+# - compute_pwcca centers acts2, not acts1, when projecting onto the y
+#   directions.
 
 
 import numpy as np
