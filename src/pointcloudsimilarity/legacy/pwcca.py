@@ -16,7 +16,9 @@
 # of https://github.com/google/svcca:
 # - merged both files into this module and dropped the __future__ imports;
 # - compute_pwcca centers acts2, not acts1, when projecting onto the y
-#   directions.
+#   directions;
+# - robust_cca_similarity catches np.linalg.LinAlgError, as NumPy 2 has no
+#   np.LinAlgError.
 
 
 import numpy as np
@@ -401,7 +403,7 @@ def robust_cca_similarity(acts1, acts2, threshold=0.98, epsilon=1e-6,
   for trial in range(num_cca_trials):
     try:
       return_dict = get_cca_similarity(acts1, acts2, threshold, compute_dirns)
-    except np.LinAlgError:
+    except np.linalg.LinAlgError:
       acts1 = acts1*1e-1 + np.random.normal(size=acts1.shape)*epsilon
       acts2 = acts2*1e-1 + np.random.normal(size=acts1.shape)*epsilon
       if trial + 1 == num_cca_trials:
