@@ -12,6 +12,7 @@ import torch
 import pandas as pd
 
 # import pointcloudsimilarity.similarities as pcsim
+from datasets import load_dataset
 from pointcloudsimilarity.datasets import load_text_dataset
 from pointcloudsimilarity.similarities import (CKASimilarity, GULPSimilarity,
                                                GWSimilarity,
@@ -81,6 +82,9 @@ def similarities_model_vs_finetuning(dataset='imdb',
                                       label_column=column_Y,
                                       n_samples=N_SAMPLES,
                                       seed=12345)
+    # The whole split, read back from the cache load_text_dataset filled
+    n_rows = len(load_dataset(dataset, split=split))
+    print(f"Downloaded dataset {dataset} with {n_rows} samples.")
     dataset_name = dataset.split('/')[-1].replace('_', '')
     print(f"Loaded {len(texts)} samples.")
 
