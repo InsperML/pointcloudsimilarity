@@ -29,25 +29,30 @@ In our experiments (e.g., MultiBERTs), TAS reveals that fine-tuning induces **gl
 
 ## What you’ll find in this repo
 
-- Implementation of the **Topological Alignment Spectrum (TAS)**
+- Implementation of the **Topological Alignment Spectrum (TAS)** and other point cloud similarity measures
 - Tools to analyze representational similarity across scales
 
 ## Papers
 
-    @misc{tavares2025ijcnn,
+    @misc{tavares2026ijcnn,
         title={Diagnosing Neural Convergence with Topological Alignment Spectra}, 
         author={Tiago F. Tavares and Fabio Ayres and Paris Smaragdis},
-        year={2025},
+        year={2026},
+        booktitle={Published at IJCNN 2026},
         url={https://arxiv.org/abs/2411.08687}, 
     }
 
 ## Quick start
 
-### Installing directly from git
+### Installing
 
 ```bash
-pip install git+ssh://git@github.com/InsperML/pointcloudsimilarity.git
+pip install pointcloudsimilarity
 ```
+
+This pulls in PyTorch. On Linux, pip installs its CUDA build by default; for a
+smaller CPU-only install, install torch first from
+https://download.pytorch.org/whl/cpu.
 
 ### Example code
 
@@ -75,6 +80,22 @@ from pointcloudsimilarity.similarities import tas_spectrum
 ks = np.arange(1, pc1.shape[0] - 1, 10)
 spectrum = tas_spectrum(pc1, pc2, ks)  # TAS value for each k
 ```
+
+## Implemented similarity measures
+
+All measures take two point clouds with the same number of rows, where row `i`
+of each cloud is the same input (for example, the same sentence embedded by two
+models). Each class is also available through
+`compute_similarity(X, Y, method=...)`.
+
+| Measure | Class (`method`) | How it works | Reference |
+|---|---|---|---|
+| TAS | `TASSimilarityTorch` (`tas_torch`), `TASSimilarityCPU` (`tas_cpu`) | For every point, finds its `k` nearest neighbors in each cloud and measures how much the two neighbor sets overlap (Jaccard index). The mean overlap is normalized against what random neighbor sets would give, so 1 is identical neighborhoods, 0 is chance and negative values are worse than chance. Sweeping `k` gives the spectrum, from local to global structure. | Tavares, Ayres & Smaragdis, *Diagnosing Neural Convergence with Topological Alignment Spectra*, IJCNN 2026. [arXiv:2411.08687](https://arxiv.org/abs/2411.08687) |
+| CKA | `CKASimilarity` (`cka`) | Centered Kernel Alignment. Builds a kernel (Gram) matrix for each cloud, linear or RBF, and computes their normalized alignment (HSIC). Linear CKA is `‖YᵀX‖²_F / (‖XᵀX‖_F ‖YᵀY‖_F)` on centered data, which does not change under rotations or uniform scaling of either cloud. With the RBF kernel, each cloud's bandwidth comes from its median pairwise distance. | Kornblith, Norouzi, Lee & Hinton, *Similarity of Neural Network Representations Revisited*, ICML 2019. [arXiv:1905.00414](https://arxiv.org/abs/1905.00414) |
+| GULP | `GULPSimilarity` (`gulp`) | Compares two representations by how differently they predict linear functions of the inputs when ridge regression (regularization `lambda_`) is fit on top of each. The distance is computed in closed form from the covariance and cross-covariance matrices. Here the data are centered and each point is scaled to unit norm first, and the similarity is `1 − d²`. | Boix-Adserà, Lawrence, Stepaniants & Rigollet, *GULP: a prediction-based metric between representations*, NeurIPS 2022. [arXiv:2210.06545](https://arxiv.org/abs/2210.06545) |
+| Gromov–Wasserstein | `GWSimilarity` (`gw_sim`) | Computes the matrix of Euclidean distances within each cloud, then finds the soft matching of points (a transport plan with uniform weights) that makes the two distance matrices agree best, using [POT](https://pythonot.github.io/). It does not use the row pairing, so it only compares the shapes. Similarity is `1 / (1 + GW)`. | Mémoli, *Gromov–Wasserstein Distances and the Metric Approach to Object Matching*, Foundations of Computational Mathematics, 2011. [doi:10.1007/s10208-011-9093-5](https://doi.org/10.1007/s10208-011-9093-5) |
+| Procrustes | `ProcrustesSimilarity` (`procrustes`) | Centers both clouds and scales them to unit norm, then rotates (or reflects) and scales the second to fit the first as closely as possible. The disparity is the remaining sum of squared differences, and the similarity is `1 − disparity`. Uses `scipy.spatial.procrustes`, so both clouds need the same dimension. | Gower, *Generalized Procrustes Analysis*, Psychometrika, 1975. [doi:10.1007/BF02291478](https://doi.org/10.1007/BF02291478) |
+| PWCCA | `PWCCASimilarity` (`pwcca`) | Canonical Correlation Analysis finds pairs of directions, one in each cloud, whose projections are maximally correlated. PWCCA averages those canonical correlations, weighting each by how much of the first cloud it accounts for; `symmetric=True` averages both directions. It needs more points than dimensions. The code is adapted from Google's [SVCCA](https://github.com/google/svcca) repository. | Morcos, Raghu & Bengio, *Insights on representational similarity in neural networks with canonical correlation*, NeurIPS 2018. [arXiv:1806.05759](https://arxiv.org/abs/1806.05759) |
 
 ## Cloning and working with the repo
 
